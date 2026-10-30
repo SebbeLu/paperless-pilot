@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -15,6 +16,7 @@ from paperless_pilot.domain.models import (
     DocumentType,
     FileKind,
     HostProbe,
+    LlmModel,
     PaperlessInfo,
     Tag,
 )
@@ -145,14 +147,18 @@ class FakeLlmHost:
         name: str = "Mac",
         *,
         probe: HostProbe | None = None,
-        replies: Sequence[BaseModel] = (),
+        replies: Sequence[BaseModel | dict[str, Any] | PilotError] = (),
         error: PilotError | None = None,
     ) -> None:
         self._name = name
-        self._probe = probe or HostProbe(version="0.24.0")
-        self._replies = list(replies)
-        self._error = error
+        self._probe = probe or HostProbe(
+            version="0.24.0", models=(LlmModel(name="gemma4:26b", size_bytes=1),)
+        )
+        self.replies = list(replies)
+        self.error = error
         self.prompts: list[str] = []
+        self.systems: list[str | None] = []
+        self.models: list[str] = []
 
     @property
     def name(self) -> str:
@@ -163,8 +169,8 @@ class FakeLlmHost:
         return f"http://{self._name.lower()}.test:11434"
 
     async def probe(self) -> HostProbe:
-        if self._error is not None:
-            raise self._error
+        if self.error is not None:
+            raise self.error
         return self._probe
 
     async def generate_structured[T: BaseModel](
@@ -176,7 +182,13 @@ class FakeLlmHost:
         system: str | None = None,
         images: Sequence[bytes] = (),
     ) -> T:
-        if self._error is not None:
-            raise self._error
+        if self.error is not None:
+            raise self.error
         self.prompts.append(prompt)
-        return output_type.model_validate(self._replies.pop(0).model_dump())
+        self.systems.append(system)
+        self.models.append(model)
+        reply = self.replies.pop(0)
+        if isinstance(reply, PilotError):
+            raise reply
+        data = reply.model_dump() if isinstance(reply, BaseModel) else reply
+        return output_type.model_validate(data)

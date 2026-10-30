@@ -45,3 +45,7 @@ class ConflictError(PilotError):
 
 class ValidationFailedError(PilotError):
     """Eingaben sind fachlich ungültig."""
+
+
+class NoTextError(PilotError):
+    """Das Dokument hat keinen OCR-Text – Auslesen ist ohne Vision-OCR nicht möglich."""

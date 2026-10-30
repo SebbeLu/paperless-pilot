@@ -8,12 +8,13 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, type MetadataValues, type Suggestion } from "@/api/client";
+import { ApiError, type Change, type MetadataValues, type Suggestion } from "@/api/client";
 import {
   useAcceptSuggestion,
   useLookups,
   useReextractSuggestion,
   useRejectSuggestion,
+  useRevertChange,
   useSuggestion,
   useSuggestions,
   useSystemStatus,
@@ -30,6 +31,21 @@ export function ReviewPage() {
   const { data: suggestions, error, isPending } = useSuggestions();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [lastChange, setLastChange] = useState<Change | null>(null);
+  const revert = useRevertChange();
+  const undo = useCallback(() => {
+    if (!lastChange || revert.isPending) return;
+    revert.mutate(
+      { id: lastChange.id },
+      {
+        onSuccess: () => {
+          setSelectedId(null);
+          lastIndex.current = 0;
+          setLastChange(null);
+        },
+      },
+    );
+  }, [lastChange, revert]);
 
   const list = suggestions ?? [];
   const index = Math.max(
@@ -76,6 +92,19 @@ export function ReviewPage() {
         }
       />
       {showHelp && <KeyboardHelp />}
+      {lastChange && (
+        <Alert tone="success" className="mb-4 flex-wrap justify-between">
+          <span>„{lastChange.after.title}“ übernommen.</span>
+          <Button onClick={undo} disabled={revert.isPending}>
+            Rückgängig <kbd className="ml-1 text-xs opacity-70">Z</kbd>
+          </Button>
+        </Alert>
+      )}
+      {revert.error && (
+        <Alert tone="danger" className="mb-4">
+          {revert.error.message}
+        </Alert>
+      )}
       {error && <Alert tone="danger">{error.message}</Alert>}
       {isPending && <p className="text-sm text-zinc-500">Lädt …</p>}
       {suggestions && list.length === 0 && <EmptyState />}
@@ -90,6 +119,8 @@ export function ReviewPage() {
             onPrevious={() => go(-1)}
             onNext={() => go(1)}
             onToggleHelp={() => setShowHelp((v) => !v)}
+            onAccepted={setLastChange}
+            onUndo={undo}
           />
         </div>
       )}
@@ -166,12 +197,16 @@ function Review({
   onPrevious,
   onNext,
   onToggleHelp,
+  onAccepted,
+  onUndo,
 }: {
   suggestion: Suggestion;
   position: string;
   onPrevious: () => void;
   onNext: () => void;
   onToggleHelp: () => void;
+  onAccepted: (change: Change) => void;
+  onUndo: () => void;
 }) {
   const detail = useSuggestion(suggestion.id);
   const taxonomy = useTaxonomy();
@@ -189,9 +224,9 @@ function Review({
 
   const doAccept = useCallback(
     (force = false) => {
-      if (!busy) accept.mutate({ id: suggestion.id, values, force });
+      if (!busy) accept.mutate({ id: suggestion.id, values, force }, { onSuccess: onAccepted });
     },
-    [accept, busy, suggestion.id, values],
+    [accept, busy, suggestion.id, values, onAccepted],
   );
 
   useReviewKeys({
@@ -207,6 +242,7 @@ function Review({
       target?.focus();
     },
     onHelp: onToggleHelp,
+    onUndo,
   });
 
   const changedSince = detail.data?.changed_since ?? [];
@@ -309,9 +345,10 @@ type KeyHandlers = {
   onPrevious: () => void;
   onEdit: () => void;
   onHelp: () => void;
+  onUndo: () => void;
 };
 
-/** J/K blättern, Enter übernimmt, R verwirft, E springt ins erste unsichere Feld, ? Hilfe. */
+/** J/K blättern, Enter übernimmt, R verwirft, E springt ins erste unsichere Feld, Z rückgängig. */
 export function useReviewKeys(handlers: KeyHandlers) {
   const ref = useRef(handlers);
   ref.current = handlers;
@@ -332,6 +369,7 @@ export function useReviewKeys(handlers: KeyHandlers) {
           k: ref.current.onPrevious,
           r: ref.current.onReject,
           e: ref.current.onEdit,
+          z: ref.current.onUndo,
           "?": ref.current.onHelp,
           Enter: ref.current.onAccept,
         } as Record<string, (() => void) | undefined>
@@ -352,6 +390,7 @@ function KeyboardHelp() {
     ["J / K", "Nächster / vorheriger Vorschlag"],
     ["R", "Verwerfen"],
     ["E", "Ins erste unsichere Feld springen"],
+    ["Z", "Letzte Übernahme rückgängig"],
     ["Esc", "Feld verlassen"],
     ["?", "Diese Hilfe"],
   ];

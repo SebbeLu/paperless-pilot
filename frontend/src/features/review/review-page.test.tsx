@@ -130,6 +130,36 @@ describe("Prüfen", () => {
     expect(screen.getByDisplayValue("Bürostuhl 3")).toBeInTheDocument();
   });
 
+  it("macht die letzte Übernahme mit Z rückgängig", async () => {
+    const backend = setup();
+    await screen.findByDisplayValue("Bürostuhl 1");
+
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByText("„Bürostuhl 1“ übernommen.")).toBeInTheDocument();
+    await screen.findByDisplayValue("Bürostuhl 2");
+    await userEvent.keyboard("z");
+
+    await waitFor(() => expect(backend.reverted).toEqual([101]));
+    expect(await screen.findByDisplayValue("Bürostuhl 1")).toBeInTheDocument();
+    expect(screen.queryByText("„Bürostuhl 1“ übernommen.")).not.toBeInTheDocument();
+    await userEvent.keyboard("z"); // nichts mehr rückgängig zu machen
+    expect(backend.reverted).toHaveLength(1);
+  });
+
+  it("zeigt Fehler beim Rückgängigmachen", async () => {
+    setup();
+    server.use(
+      http.post("*/api/changes/:id/revert", () =>
+        HttpResponse.json({ detail: "Paperless weg" }, { status: 503 }),
+      ),
+    );
+    await screen.findByDisplayValue("Bürostuhl 1");
+
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(await screen.findByRole("button", { name: /Rückgängig/ }));
+    expect(await screen.findByText("Paperless weg")).toBeInTheDocument();
+  });
+
   it("Enter im Eingabefeld übernimmt, Tasten im Feld blättern nicht", async () => {
     const backend = setup();
     const title = await screen.findByLabelText("Titel");

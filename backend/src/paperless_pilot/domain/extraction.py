@@ -336,11 +336,26 @@ def _date_problem(value: date, evidence: str | None, text: str, today: date) -> 
         return "ungewöhnlich alt"
     if not evidence_in_text(evidence, text):
         return "nicht im Text belegt"
-    if str(value.year) not in (evidence or "") and f"{value.year % 100:02d}" not in (
-        evidence or ""
-    ):
+    quote = (evidence or "").casefold()
+    if str(value.year) not in quote and f"{value.year % 100:02d}" not in quote:
         return "Jahr passt nicht zum Zitat"
+    if not _month_in(value.month, quote):
+        return "Monat passt nicht zum Zitat"
     return None
+
+
+_MONTHS = (
+    "januar", "februar", "märz", "april", "mai", "juni",
+    "juli", "august", "september", "oktober", "november", "dezember",
+)  # fmt: skip
+
+
+def _month_in(month: int, quote: str) -> bool:
+    """Monat als Zahl („07.“, „.7.“) oder ausgeschrieben („Juli“, „Jul“) im Zitat?"""
+    name = _MONTHS[month - 1]
+    if name in quote or name[:3] in quote:
+        return True
+    return bool(re.search(rf"(?<!\d)0?{month}\s*\.", quote))
 
 
 def _persons_check(persons: list[Any], text: str) -> FieldCheck:

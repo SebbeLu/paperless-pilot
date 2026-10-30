@@ -20,10 +20,7 @@ describe("Navigation", () => {
     expect(nav.querySelectorAll("a")).toHaveLength(6);
   });
 
-  it.each([
-    ["/aufraeumen", "Aufräumen", 2],
-    ["/verlauf", "Verlauf", 1],
-  ])("öffnet %s direkt", async (path, title, phase) => {
+  it.each([["/aufraeumen", "Aufräumen", 2]])("öffnet %s direkt", async (path, title, phase) => {
     renderApp(path);
 
     expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();

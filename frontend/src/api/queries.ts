@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
   type HostRules,
@@ -145,7 +145,7 @@ export function useSuggestion(id: number | null) {
   });
 }
 
-function useSuggestionAction<T>(action: (args: T) => Promise<unknown>) {
+function useSuggestionAction<T, R>(action: (args: T) => Promise<R>) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: action,
@@ -186,6 +186,36 @@ export function useReextractSuggestion() {
     unwrap(
       api.POST("/api/suggestions/{suggestion_id}/reextract", {
         params: { path: { suggestion_id: id } },
+      }),
+    ),
+  );
+}
+
+export function useChanges() {
+  return useInfiniteQuery({
+    queryKey: queryKeys.changes,
+    queryFn: ({ pageParam }) =>
+      unwrap(
+        api.GET("/api/changes", {
+          params: {
+            query: { limit: CHANGES_PAGE, ...(pageParam ? { before_id: pageParam } : {}) },
+          },
+        }),
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (last) =>
+      last.length === CHANGES_PAGE ? last[last.length - 1]?.id : undefined,
+  });
+}
+
+export const CHANGES_PAGE = 50;
+
+export function useRevertChange() {
+  return useSuggestionAction(({ id, force = false }: { id: number; force?: boolean }) =>
+    unwrap(
+      api.POST("/api/changes/{change_id}/revert", {
+        params: { path: { change_id: id } },
+        body: { force },
       }),
     ),
   );

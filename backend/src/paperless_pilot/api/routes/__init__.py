@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from paperless_pilot.api.routes import (
+    changes,
     documents,
     events,
     hosts,
@@ -12,5 +13,15 @@ from paperless_pilot.api.routes import (
 )
 
 router = APIRouter()
-for module in (system, taxonomy, paperless, hosts, jobs, suggestions, documents, events):
+for module in (
+    system,
+    taxonomy,
+    paperless,
+    hosts,
+    jobs,
+    suggestions,
+    changes,
+    documents,
+    events,
+):
     router.include_router(module.router)

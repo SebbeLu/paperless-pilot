@@ -125,6 +125,7 @@ def test_known_correspondent_without_evidence_is_flagged() -> None:
         ({"date_evidence": "am 01.01.2025 erfunden"}, "nicht im Text belegt"),
         ({"document_date": "12.09.2024"}, "Jahr passt nicht zum Zitat"),
         ({"document_date": "0502-10-20"}, "Datum „0502-10-20“ nicht lesbar"),
+        ({"document_date": "12.07.2025"}, "Monat passt nicht zum Zitat"),
     ],
 )
 def test_date_checks(overrides: dict[str, object], message: str) -> None:
@@ -158,6 +159,20 @@ def test_household_member_is_never_the_sender() -> None:
 def test_title_copied_from_filename_is_flagged() -> None:
     result = run(title="SwiftScan 2026-10-07 14.25.56")
     assert result.checks["title"].status == CheckStatus.WARN
+
+
+@pytest.mark.parametrize(
+    "evidence", ["Musterstadt, den 12.09.2025", "im September 2025", "12. Sep. 2025", "12.9.2025"]
+)
+def test_month_in_words_or_numbers_is_accepted(evidence: str) -> None:
+    doc = document(content=f"Rechnung\n{evidence}\nBetrag")
+    assert run(doc=doc, date_evidence=evidence).checks["created"].status == CheckStatus.OK
+
+
+def test_ocr_garbage_date_is_not_accepted() -> None:
+    doc = document(content="Musterstadt, 130t2c26\nBrief")
+    result = run(doc=doc, document_date="13.07.26", date_evidence="Musterstadt, 130t2c26")
+    assert result.checks["created"].message == "Monat passt nicht zum Zitat"
 
 
 def test_two_digit_year_in_evidence_is_accepted() -> None:

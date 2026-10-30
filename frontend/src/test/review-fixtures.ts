@@ -1,5 +1,6 @@
 import { HttpResponse, http } from "msw";
 import type {
+  Change,
   Lookups,
   MetadataValues,
   Suggestion,
@@ -106,13 +107,43 @@ export type ReviewBackend = {
   accepted: { id: number; body: { values: MetadataValues; force: boolean } }[];
   rejected: number[];
   reextracted: number[];
+  reverted: number[];
 };
+
+export function change(id: number, overrides: Partial<Change> = {}): Change {
+  const state = {
+    title: "SwiftScan 2026-10-07",
+    document_type_id: 50,
+    correspondent_id: 90,
+    created: "2026-10-07",
+    tag_ids: [1, 41],
+  };
+  return {
+    id,
+    document_id: 701,
+    suggestion_id: 1,
+    kind: "apply",
+    actor: "user",
+    before: state,
+    after: {
+      ...state,
+      title: "Bürostuhl 1",
+      document_type_id: 10,
+      correspondent_id: 91,
+      created: "2025-09-12",
+      tag_ids: [20, 30, 42],
+    },
+    created_at: "2026-10-30T12:30:00Z",
+    reverted_by: null,
+    ...overrides,
+  };
+}
 
 /** Kleines Backend: Liste schrumpft nach Entscheidungen. */
 export function reviewHandlers(initial: Suggestion[], options: { conflictOnce?: boolean } = {}) {
   let open = [...initial];
   let conflict = options.conflictOnce ?? false;
-  const backend: ReviewBackend = { accepted: [], rejected: [], reextracted: [] };
+  const backend: ReviewBackend = { accepted: [], rejected: [], reextracted: [], reverted: [] };
   const remove = (id: number) => {
     open = open.filter((s) => s.id !== id);
   };
@@ -140,12 +171,21 @@ export function reviewHandlers(initial: Suggestion[], options: { conflictOnce?: 
       }
       backend.accepted.push({ id: Number(params.id), body });
       remove(Number(params.id));
-      return HttpResponse.json({});
+      return HttpResponse.json(
+        change(100 + Number(params.id), { suggestion_id: Number(params.id) }),
+      );
     }),
     http.post("*/api/suggestions/:id/reject", ({ params }) => {
       backend.rejected.push(Number(params.id));
       remove(Number(params.id));
       return HttpResponse.json({});
+    }),
+    http.post("*/api/changes/:id/revert", ({ params }) => {
+      const id = Number(params.id);
+      backend.reverted.push(id);
+      const restored = initial.find((s) => s.id === id - 100);
+      if (restored) open = [restored, ...open];
+      return HttpResponse.json(change(200, { kind: "revert" }));
     }),
     http.post("*/api/suggestions/:id/reextract", ({ params }) => {
       backend.reextracted.push(Number(params.id));

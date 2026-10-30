@@ -15,6 +15,7 @@ from paperless_pilot.adapters.db.repositories import (
 )
 from paperless_pilot.application.events import EventBus
 from paperless_pilot.application.extraction import ExtractionService
+from paperless_pilot.application.history import HistoryService
 from paperless_pilot.application.hosts import HostRegistry
 from paperless_pilot.application.intake import IntakeService
 from paperless_pilot.application.processing import JobProcessor, Scheduler
@@ -43,6 +44,7 @@ class Pipeline:
     processor: JobProcessor
     scheduler: Scheduler
     review: ReviewService
+    history: HistoryService
 
 
 async def build_pipeline(
@@ -88,4 +90,5 @@ async def build_pipeline(
             idle_seconds=0.01,
         ),
         review=ReviewService(paperless, suggestions, changes, jobs, tax, clock, events),
+        history=HistoryService(paperless, changes, suggestions, clock, events),
     )

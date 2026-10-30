@@ -21,6 +21,7 @@ from paperless_pilot.adapters.ollama import OllamaHost
 from paperless_pilot.adapters.paperless import PaperlessClient
 from paperless_pilot.application.events import EventBus
 from paperless_pilot.application.extraction import ExtractionService
+from paperless_pilot.application.history import HistoryService
 from paperless_pilot.application.hosts import HostRegistry
 from paperless_pilot.application.intake import IntakeService
 from paperless_pilot.application.processing import JobProcessor, Scheduler
@@ -62,6 +63,7 @@ class Container:
     intake: IntakeService
     scheduler: Scheduler
     review: ReviewService
+    history: HistoryService
 
 
 @asynccontextmanager
@@ -146,6 +148,7 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
             review=ReviewService(
                 paperless, suggestions, changes, jobs, taxonomy_repository, clock, events
             ),
+            history=HistoryService(paperless, changes, suggestions, clock, events),
         )
     finally:
         await engine.dispose()

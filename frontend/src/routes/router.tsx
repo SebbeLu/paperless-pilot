@@ -5,6 +5,7 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { HistoryPage } from "@/features/history/history-page";
 import { HostsPage } from "@/features/hosts/hosts-page";
 import { OverviewPage } from "@/features/overview/overview-page";
 import { PlaceholderPage } from "@/features/placeholder-page";
@@ -20,12 +21,6 @@ const placeholders = [
     description: "Doppelte Tags und Korrespondenten zusammenführen.",
     phase: 2,
   },
-  {
-    path: "/verlauf",
-    title: "Verlauf",
-    description: "Jede Änderung an Paperless, mit Rückgängig.",
-    phase: 1,
-  },
 ] as const;
 
 const routeTree = rootRoute.addChildren([
@@ -33,6 +28,7 @@ const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/regeln", component: TaxonomyPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/rechner", component: HostsPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/pruefen", component: ReviewPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/verlauf", component: HistoryPage }),
   ...placeholders.map(({ path, ...props }) =>
     createRoute({
       getParentRoute: () => rootRoute,

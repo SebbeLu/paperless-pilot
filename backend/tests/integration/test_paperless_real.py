@@ -9,6 +9,7 @@ import secrets
 import time
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 import pytest
@@ -105,15 +106,19 @@ async def _upload_text_document(server: PaperlessServer, text: str) -> int:
             files={"document": ("rechnung.txt", text.encode(), "text/plain")},
         )
         response.raise_for_status()
-        task_id = response.json()
+        body = response.json()
+        task_id = body["task_id"] if isinstance(body, dict) else body
+        last_seen: Any = None
         for _ in range(120):
-            tasks = (await http.get("/api/tasks/", params={"task_id": task_id})).json()
+            last_seen = (await http.get("/api/tasks/", params={"task_id": task_id})).json()
+            # Je nach API-Version eine Liste oder eine Seite mit "results"
+            tasks = last_seen["results"] if isinstance(last_seen, dict) else last_seen
             if tasks and tasks[0]["status"] == "SUCCESS":
                 return int(tasks[0]["related_document"])
             if tasks and tasks[0]["status"] == "FAILURE":
                 pytest.fail(f"Verarbeitung fehlgeschlagen: {tasks[0].get('result')}")
             await asyncio.sleep(1)
-    pytest.fail("Dokument wurde nicht rechtzeitig verarbeitet")
+    pytest.fail(f"Dokument wurde nicht rechtzeitig verarbeitet (zuletzt: {last_seen!r:.500})")
 
 
 async def test_roundtrip_against_real_paperless(

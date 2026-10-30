@@ -5,6 +5,7 @@ lesen, Taxonomie abfragen und Metadaten zurückschreiben.
 """
 
 import asyncio
+import secrets
 import time
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
@@ -44,6 +45,10 @@ def _wait_until_ready(url: str, container: DockerContainer) -> None:
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
     last_seen = "keine Antwort"
     while time.monotonic() < deadline:
+        wrapped = container.get_wrapped_container()
+        wrapped.reload()
+        if wrapped.status in {"exited", "dead"}:
+            _report_startup_failure(container, f"Paperless-Container beendet ({wrapped.status})")
         try:
             # Jede HTTP-Antwort von Django heißt: Migrationen und Admin-Anlage sind durch.
             # Ohne Anmeldung leitet /api/ auf den Login um (302), daher kein fester Statuscode.
@@ -67,6 +72,8 @@ def paperless_server() -> Iterator[PaperlessServer]:
         DockerContainer(PAPERLESS_IMAGE)
         .with_network(network)
         .with_env("PAPERLESS_REDIS", "redis://redis:6379")
+        # Ab 3.2 startet Paperless nicht ohne eigenen Schlüssel
+        .with_env("PAPERLESS_SECRET_KEY", secrets.token_urlsafe(64))
         .with_env("PAPERLESS_ADMIN_USER", ADMIN_USER)
         .with_env("PAPERLESS_ADMIN_PASSWORD", ADMIN_PASSWORD)
         .with_env("PAPERLESS_OCR_LANGUAGE", "deu")

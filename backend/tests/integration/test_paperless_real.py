@@ -98,6 +98,17 @@ async def client(paperless_server: PaperlessServer) -> AsyncIterator[PaperlessCl
     await client.aclose()
 
 
+def _document_id_of(task: dict[str, Any]) -> int:
+    """Ab 3.2 steht die ID in result_data bzw. related_document_ids, davor in related_document."""
+    if document_id := (task.get("result_data") or {}).get("document_id"):
+        return int(document_id)
+    if ids := task.get("related_document_ids"):
+        return int(ids[0])
+    if (document_id := task.get("related_document")) is not None:
+        return int(document_id)
+    pytest.fail(f"Aufgabe ohne Dokument-ID: {task!r}")
+
+
 async def _upload_text_document(server: PaperlessServer, text: str) -> int:
     headers = {"Authorization": f"Token {server.token}"}
     async with httpx.AsyncClient(base_url=server.url, headers=headers, timeout=30) as http:
@@ -116,9 +127,7 @@ async def _upload_text_document(server: PaperlessServer, text: str) -> int:
             task = tasks[0] if tasks else {}
             status = str(task.get("status", "")).upper()  # ab 3.2 kleingeschrieben
             if status == "SUCCESS":
-                if task.get("related_document") is None:
-                    pytest.fail(f"Aufgabe ohne related_document: {task!r}")
-                return int(task["related_document"])
+                return _document_id_of(task)
             if status == "FAILURE":
                 pytest.fail(f"Verarbeitung fehlgeschlagen: {task!r}")
             await asyncio.sleep(1)

@@ -29,3 +29,19 @@ class InvalidLlmOutputError(PilotError):
         super().__init__(f"Antwort von {model} passt nicht zum Schema: {detail}")
         self.model = model
         self.raw_output = raw_output
+
+
+class LlmHostUnavailableError(ServiceUnavailableError):
+    """Ein Ollama-Rechner ist weg – der Auftrag kann auf einem anderen Rechner weiterlaufen."""
+
+
+class ConflictError(PilotError):
+    """Das Dokument wurde inzwischen in Paperless geändert."""
+
+    def __init__(self, message: str, fields: list[str]) -> None:
+        super().__init__(message)
+        self.fields = fields
+
+
+class ValidationFailedError(PilotError):
+    """Eingaben sind fachlich ungültig."""

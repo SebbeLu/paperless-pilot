@@ -44,10 +44,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/taxonomy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Taxonomy
+         * @description Taxonomie samt Abgleich mit Paperless.
+         */
+        get: operations["get_taxonomy_api_taxonomy_get"];
+        /**
+         * Save Taxonomy
+         * @description Speichert die Taxonomie (auch für den Import einer Sicherung).
+         */
+        put: operations["save_taxonomy_api_taxonomy_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Taxonomy
+         * @description Verknüpft gleichnamige Objekte und legt fehlende in Paperless an.
+         */
+        post: operations["sync_taxonomy_api_taxonomy_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Taxonomy
+         * @description Sicherung als JSON-Datei.
+         */
+        get: operations["export_taxonomy_api_taxonomy_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/paperless/lookups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lookups */
+        get: operations["lookups_api_paperless_lookups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CorrespondentOption */
+        CorrespondentOption: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Excluded */
+            excluded: boolean;
+        };
+        /** @enum {string} */
+        Group: "document_types" | "persons" | "areas" | "status";
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /** Health */
         Health: {
             /**
@@ -81,6 +178,25 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /**
+         * Lookups
+         * @description Auswahllisten für die Oberfläche.
+         */
+        Lookups: {
+            /** Correspondents */
+            correspondents: components["schemas"]["CorrespondentOption"][];
+            /** Document Types */
+            document_types: components["schemas"]["Option"][];
+            /** Tags */
+            tags: components["schemas"]["Option"][];
+        };
+        /** Option */
+        Option: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+        };
         /** PaperlessStatus */
         PaperlessStatus: {
             /** Reachable */
@@ -95,13 +211,159 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** PersonEntry */
+        PersonEntry: {
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Paperless Id */
+            paperless_id?: number | null;
+            /**
+             * Aliases
+             * @default []
+             */
+            aliases: string[];
+        };
         /** @enum {string} */
         Problem: "unreachable" | "auth";
+        /** StatusTags */
+        StatusTags: {
+            /**
+             * @default {
+             *       "name": "ai:todo",
+             *       "description": "wartet auf Auslesen"
+             *     }
+             */
+            todo: components["schemas"]["TaxonomyEntry"];
+            /**
+             * @default {
+             *       "name": "ai:prüfen",
+             *       "description": "Vorschlag liegt vor"
+             *     }
+             */
+            review: components["schemas"]["TaxonomyEntry"];
+            /**
+             * @default {
+             *       "name": "ai:fertig",
+             *       "description": "geprüft und übernommen"
+             *     }
+             */
+            done: components["schemas"]["TaxonomyEntry"];
+            /**
+             * @default {
+             *       "name": "ai:fehler",
+             *       "description": "konnte nicht ausgelesen werden"
+             *     }
+             */
+            error: components["schemas"]["TaxonomyEntry"];
+        };
+        /** SyncItem */
+        SyncItem: {
+            group: components["schemas"]["Group"];
+            /** Name */
+            name: string;
+            status: components["schemas"]["SyncStatus"];
+            /** Paperless Id */
+            paperless_id: number | null;
+            /** Paperless Name */
+            paperless_name: string | null;
+        };
+        /**
+         * SyncStatus
+         * @enum {string}
+         */
+        SyncStatus: "linked" | "link_by_name" | "missing" | "stale";
         /** SystemStatus */
         SystemStatus: {
             paperless: components["schemas"]["PaperlessStatus"];
             /** Hosts */
             hosts: components["schemas"]["HostStatus"][];
+        };
+        /** Taxonomy */
+        Taxonomy: {
+            /**
+             * Document Types
+             * @default []
+             */
+            document_types: components["schemas"]["TaxonomyEntry"][];
+            /**
+             * Persons
+             * @default []
+             */
+            persons: components["schemas"]["PersonEntry"][];
+            /**
+             * Areas
+             * @default []
+             */
+            areas: components["schemas"]["TaxonomyEntry"][];
+            /**
+             * @default {
+             *       "todo": {
+             *         "description": "wartet auf Auslesen",
+             *         "name": "ai:todo"
+             *       },
+             *       "review": {
+             *         "description": "Vorschlag liegt vor",
+             *         "name": "ai:prüfen"
+             *       },
+             *       "done": {
+             *         "description": "geprüft und übernommen",
+             *         "name": "ai:fertig"
+             *       },
+             *       "error": {
+             *         "description": "konnte nicht ausgelesen werden",
+             *         "name": "ai:fehler"
+             *       }
+             *     }
+             */
+            status: components["schemas"]["StatusTags"];
+            /**
+             * Correspondent Exclude Pattern
+             * @default ^o_
+             */
+            correspondent_exclude_pattern: string;
+            /**
+             * Remove Inbox Tag On Accept
+             * @default true
+             */
+            remove_inbox_tag_on_accept: boolean;
+        };
+        /** TaxonomyEntry */
+        TaxonomyEntry: {
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Paperless Id */
+            paperless_id?: number | null;
+        };
+        /** TaxonomyState */
+        TaxonomyState: {
+            taxonomy: components["schemas"]["Taxonomy"];
+            /** Configured */
+            configured: boolean;
+            /** Sync */
+            sync: components["schemas"]["SyncItem"][];
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -148,6 +410,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemStatus"];
+                };
+            };
+        };
+    };
+    get_taxonomy_api_taxonomy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyState"];
+                };
+            };
+        };
+    };
+    save_taxonomy_api_taxonomy_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Taxonomy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_taxonomy_api_taxonomy_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyState"];
+                };
+            };
+        };
+    };
+    export_taxonomy_api_taxonomy_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Taxonomy"];
+                };
+            };
+        };
+    };
+    lookups_api_paperless_lookups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lookups"];
                 };
             };
         };

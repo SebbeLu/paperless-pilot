@@ -12,7 +12,7 @@ from paperless_pilot.domain.errors import (
     NotFoundError,
     ServiceUnavailableError,
 )
-from paperless_pilot.domain.models import CustomFieldValue, DocumentPatch
+from paperless_pilot.domain.models import CustomFieldValue, DocumentPatch, FileKind
 from tests.contract import paperless_payloads as p
 
 TOKEN = "test-token"  # noqa: S105
@@ -219,3 +219,49 @@ async def test_network_failure_raises_unavailable(
 async def test_create_and_close() -> None:
     client = PaperlessClient.create(p.BASE_URL + "/", TOKEN, timeout=1.0)
     await client.aclose()
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("create_tag", "/api/tags/"),
+        ("create_document_type", "/api/document_types/"),
+        ("create_correspondent", "/api/correspondents/"),
+    ],
+)
+async def test_create_objects_without_auto_matching(
+    client: PaperlessClient, api: respx.MockRouter, method: str, path: str
+) -> None:
+    route = api.post(path).respond(201, json=p.named(42, "Neu"))
+
+    created = await getattr(client, method)("Neu")
+
+    assert created.id == 42
+    assert created.name == "Neu"
+    assert json.loads(route.calls.last.request.content) == {
+        "name": "Neu",
+        "matching_algorithm": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("kind", "media"), [("preview", "application/pdf"), ("thumb", "image/webp")]
+)
+async def test_get_file_passes_content_and_type(
+    client: PaperlessClient, api: respx.MockRouter, kind: str, media: str
+) -> None:
+    api.get(f"/api/documents/1/{kind}/").respond(content=b"%PDF", headers={"content-type": media})
+
+    file = await client.get_file(1, FileKind(kind))
+
+    assert file.content == b"%PDF"
+    assert file.media_type == media
+
+
+async def test_document_modified_is_parsed(client: PaperlessClient, api: respx.MockRouter) -> None:
+    api.get("/api/documents/1/").respond(json=p.document(1))
+
+    doc = await client.get_document(1)
+
+    assert doc.modified is not None
+    assert doc.modified.isoformat() == "2026-10-08T09:12:00+02:00"

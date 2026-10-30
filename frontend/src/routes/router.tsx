@@ -7,6 +7,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { OverviewPage } from "@/features/overview/overview-page";
 import { PlaceholderPage } from "@/features/placeholder-page";
+import { TaxonomyPage } from "@/features/rules/taxonomy-page";
 
 const rootRoute = createRootRoute({ component: AppShell });
 
@@ -21,12 +22,6 @@ const placeholders = [
     path: "/aufraeumen",
     title: "Aufräumen",
     description: "Doppelte Tags und Korrespondenten zusammenführen.",
-    phase: 2,
-  },
-  {
-    path: "/regeln",
-    title: "Regeln",
-    description: "Dokumenttypen, ihre Felder und Titel-Vorlagen.",
     phase: 2,
   },
   {
@@ -45,6 +40,7 @@ const placeholders = [
 
 const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: OverviewPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/regeln", component: TaxonomyPage }),
   ...placeholders.map(({ path, ...props }) =>
     createRoute({
       getParentRoute: () => rootRoute,

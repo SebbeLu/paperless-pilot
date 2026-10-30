@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 
 from paperless_pilot.domain.errors import (
     InvalidLlmOutputError,
+    LlmHostUnavailableError,
     NotFoundError,
     ServiceUnavailableError,
 )
@@ -26,12 +27,14 @@ class OllamaHost:
         *,
         probe_timeout: float = 5.0,
         generate_timeout: float = 600.0,
+        context_length: int = 8192,
     ) -> None:
         self._name = name
         self._base = httpx.URL(base_url.rstrip("/") + "/")
         self._http = http
         self._probe_timeout = probe_timeout
         self._generate_timeout = generate_timeout
+        self._context_length = context_length
 
     @classmethod
     def create(
@@ -90,7 +93,7 @@ class OllamaHost:
                 "messages": messages,
                 "format": output_type.model_json_schema(),
                 "stream": False,
-                "options": {"temperature": 0},
+                "options": {"temperature": 0, "num_ctx": self._context_length},
             },
             request_timeout=self._generate_timeout,
         )
@@ -108,10 +111,13 @@ class OllamaHost:
             response = await self._http.request(
                 method, self._base.join(path), json=json, timeout=request_timeout
             )
+        except httpx.ConnectTimeout as exc:
+            raise LlmHostUnavailableError(service, "keine Verbindung (Zeitüberschreitung)") from exc
         except httpx.TimeoutException as exc:
+            # Antwort dauert zu lange – zählt als Fehlversuch des Auftrags, nicht des Rechners
             raise ServiceUnavailableError(service, "Zeitüberschreitung") from exc
         except httpx.TransportError as exc:
-            raise ServiceUnavailableError(service, str(exc) or type(exc).__name__) from exc
+            raise LlmHostUnavailableError(service, str(exc) or type(exc).__name__) from exc
 
         if response.status_code == 404:
             raise NotFoundError(_error_text(response))

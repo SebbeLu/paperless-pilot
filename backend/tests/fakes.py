@@ -1,15 +1,19 @@
 """Attrappen für die Ports – für Tests des Kerns ohne Netzwerk."""
 
 from collections.abc import AsyncIterator, Sequence
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel
 
-from paperless_pilot.domain.errors import NotFoundError, PilotError
+from paperless_pilot.domain.availability import EntityState
+from paperless_pilot.domain.errors import NotFoundError, PilotError, ServiceUnavailableError
 from paperless_pilot.domain.models import (
     Correspondent,
     Document,
+    DocumentFile,
     DocumentPatch,
     DocumentType,
+    FileKind,
     HostProbe,
     PaperlessInfo,
     Tag,
@@ -33,6 +37,8 @@ class FakeDocumentRepository:
             version="3.2.1", api_version=10, documents_total=len(documents), documents_inbox=0
         )
         self._error = error
+        self._id_counter = 1000
+        self._modified_counter = 0
 
     def _fail_if_broken(self) -> None:
         if self._error is not None:
@@ -71,9 +77,66 @@ class FakeDocumentRepository:
         self._fail_if_broken()
         self.patches.append((document_id, patch))
         doc = await self.get_document(document_id)
-        updated = doc.model_copy(update=patch.model_dump(exclude_unset=True))
+        changes = patch.model_dump(exclude_unset=True)
+        if "tag_ids" in changes:
+            changes["tag_ids"] = tuple(changes["tag_ids"] or ())
+        self._modified_counter += 1
+        changes["modified"] = datetime(2026, 1, 1, tzinfo=UTC) + timedelta(
+            seconds=self._modified_counter
+        )
+        updated = doc.model_copy(update=changes)
         self.documents[document_id] = updated
         return updated
+
+    def _next_id(self) -> int:
+        self._id_counter += 1
+        return self._id_counter
+
+    async def create_tag(self, name: str) -> Tag:
+        self._fail_if_broken()
+        tag = Tag(id=self._next_id(), name=name, document_count=0, is_inbox_tag=False)
+        self.tags.append(tag)
+        return tag
+
+    async def create_document_type(self, name: str) -> DocumentType:
+        self._fail_if_broken()
+        doc_type = DocumentType(id=self._next_id(), name=name, document_count=0)
+        self.document_types.append(doc_type)
+        return doc_type
+
+    async def create_correspondent(self, name: str) -> Correspondent:
+        self._fail_if_broken()
+        correspondent = Correspondent(id=self._next_id(), name=name, document_count=0)
+        self.correspondents.append(correspondent)
+        return correspondent
+
+    async def get_file(self, document_id: int, kind: FileKind) -> DocumentFile:
+        await self.get_document(document_id)
+        media = "application/pdf" if kind == FileKind.PREVIEW else "image/webp"
+        return DocumentFile(content=f"{kind}:{document_id}".encode(), media_type=media)
+
+    def edit(self, document_id: int, **changes: object) -> Document:
+        """Ändert ein Dokument „von außen“, also wie jemand direkt in Paperless."""
+        self._modified_counter += 1
+        changes["modified"] = datetime(2026, 1, 1, tzinfo=UTC) + timedelta(
+            seconds=self._modified_counter
+        )
+        updated = self.documents[document_id].model_copy(update=changes)
+        self.documents[document_id] = updated
+        return updated
+
+
+class FakeAvailability:
+    def __init__(
+        self, states: dict[str, EntityState] | None = None, *, broken: bool = False
+    ) -> None:
+        self.states = states or {}
+        self.broken = broken
+
+    async def get_states(self, entity_ids: set[str]) -> dict[str, EntityState]:
+        if self.broken:
+            raise ServiceUnavailableError("Home Assistant", "aus")
+        return {e: s for e, s in self.states.items() if e in entity_ids}
 
 
 class FakeLlmHost:

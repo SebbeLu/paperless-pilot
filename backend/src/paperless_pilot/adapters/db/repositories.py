@@ -152,7 +152,7 @@ class JobRepository:
             rows = await conn.execute(
                 select(t.jobs.c.status, func.count()).group_by(t.jobs.c.status)
             )
-            return QueueStats(**dict(rows.tuples().all()))
+            return QueueStats(**{str(status): int(count) for status, count in rows.all()})
 
     async def _set(self, job_id: int, now: datetime, **values: Any) -> Job:
         async with self._engine.begin() as conn:

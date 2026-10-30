@@ -1,69 +1,50 @@
-"""FastAPI-Anwendung: verdrahtet Konfiguration, Adapter und Routen."""
+"""FastAPI-Anwendung: Lebenszyklus, Routen und Auslieferung des Frontends."""
 
 import logging
-from collections.abc import AsyncIterator
-from contextlib import AsyncExitStack, asynccontextmanager
-from dataclasses import dataclass
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 
 from paperless_pilot import __version__
-from paperless_pilot.adapters.ollama import OllamaHost
-from paperless_pilot.adapters.paperless import PaperlessClient
+from paperless_pilot.api.container import Adapters, build_container, real_adapters
+from paperless_pilot.api.errors import register_error_handlers
 from paperless_pilot.api.routes import router
 from paperless_pilot.api.spa import SpaStaticFiles
-from paperless_pilot.application.system_status import SystemStatusService
 from paperless_pilot.config import Settings
 
 logger = logging.getLogger(__name__)
 
-HOST_PROBE_TIMEOUT_SECONDS = 3.0
+type AdapterFactory = Callable[[Settings], AbstractAsyncContextManager[Adapters]]
 
 
-@dataclass(frozen=True)
-class Services:
-    system_status: SystemStatusService
+def default_adapters(settings: Settings) -> AbstractAsyncContextManager[Adapters]:
+    return real_adapters(settings)
 
 
-@asynccontextmanager
-async def build_services(settings: Settings) -> AsyncIterator[Services]:
-    async with AsyncExitStack() as stack:
-        paperless = PaperlessClient.create(
-            str(settings.paperless_url),
-            settings.resolve_paperless_token(),
-            timeout=settings.http_timeout_seconds,
-        )
-        stack.push_async_callback(paperless.aclose)
-        hosts = []
-        for cfg in settings.ollama_hosts:
-            host = OllamaHost.create(
-                cfg.name,
-                str(cfg.url),
-                probe_timeout=HOST_PROBE_TIMEOUT_SECONDS,
-                generate_timeout=settings.llm_timeout_seconds,
-            )
-            stack.push_async_callback(host.aclose)
-            hosts.append(host)
-        yield Services(system_status=SystemStatusService(paperless, hosts))
-
-
-def create_app(settings: Settings | None = None) -> FastAPI:
-    settings = settings or Settings()  # Pflichtwerte kommen aus der Umgebung
+def create_app(
+    settings: Settings | None = None, adapter_factory: AdapterFactory = default_adapters
+) -> FastAPI:
+    settings = settings or Settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        async with build_services(settings) as services:
-            app.state.services = services
+        async with (
+            adapter_factory(settings) as adapters,
+            build_container(settings, adapters) as container,
+        ):
+            app.state.container = container
             logger.info(
-                "paperless-pilot %s gestartet: Paperless %s, %d Ollama-Rechner",
+                "paperless-pilot %s gestartet%s: %d Ollama-Rechner",
                 __version__,
-                settings.paperless_url,
-                len(settings.ollama_hosts),
+                " im Demo-Modus" if settings.demo else "",
+                len(adapters.hosts),
             )
             yield
 
     app = FastAPI(title="paperless-pilot", version=__version__, lifespan=lifespan)
+    register_error_handlers(app)
     app.include_router(router, prefix="/api")
     _mount_frontend(app, settings.static_dir)
     return app

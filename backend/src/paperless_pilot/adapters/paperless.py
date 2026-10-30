@@ -15,14 +15,17 @@ from paperless_pilot.domain.models import (
     Correspondent,
     CustomFieldValue,
     Document,
+    DocumentFile,
     DocumentPatch,
     DocumentType,
+    FileKind,
     PaperlessInfo,
     Tag,
 )
 
 API_VERSION = 10
 PAGE_SIZE = 100
+MATCH_NONE = 0
 _SERVICE = "Paperless"
 
 type JsonObject = dict[str, Any]
@@ -98,7 +101,33 @@ class PaperlessClient:
         )
         return _to_document(response.json())
 
+    async def create_tag(self, name: str) -> Tag:
+        data = await self._create("api/tags/", name)
+        return Tag(id=data["id"], name=data["name"], document_count=0, is_inbox_tag=False)
+
+    async def create_document_type(self, name: str) -> DocumentType:
+        data = await self._create("api/document_types/", name)
+        return DocumentType(id=data["id"], name=data["name"], document_count=0)
+
+    async def create_correspondent(self, name: str) -> Correspondent:
+        data = await self._create("api/correspondents/", name)
+        return Correspondent(id=data["id"], name=data["name"], document_count=0)
+
+    async def get_file(self, document_id: int, kind: FileKind) -> DocumentFile:
+        response = await self._request("GET", self._url(f"api/documents/{document_id}/{kind}/"))
+        return DocumentFile(
+            content=response.content,
+            media_type=response.headers.get("content-type", "application/octet-stream"),
+        )
+
     # --- intern ------------------------------------------------------------
+
+    async def _create(self, path: str, name: str) -> JsonObject:
+        # Keine automatische Zuordnung durch Paperless: paperless-pilot entscheidet selbst.
+        body = {"name": name, "matching_algorithm": MATCH_NONE}
+        response = await self._request("POST", self._url(path), json=body)
+        result: JsonObject = response.json()
+        return result
 
     def _url(self, path: str) -> httpx.URL:
         return self._base.join(path)

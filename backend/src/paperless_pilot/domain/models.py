@@ -1,6 +1,7 @@
 """Domänenmodell: Paperless-Objekte so, wie der Kern sie braucht – unabhängig vom API-Format."""
 
 from datetime import date, datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -82,3 +83,13 @@ class HostProbe(_Frozen):
 
     version: str
     models: tuple[LlmModel, ...] = Field(default=())
+
+
+class FileKind(StrEnum):
+    PREVIEW = "preview"
+    THUMB = "thumb"
+
+
+class DocumentFile(_Frozen):
+    content: bytes
+    media_type: str

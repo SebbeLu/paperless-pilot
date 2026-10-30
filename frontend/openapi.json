@@ -48,10 +48,182 @@
           }
         }
       }
+    },
+    "/api/taxonomy": {
+      "get": {
+        "tags": [
+          "taxonomy"
+        ],
+        "summary": "Get Taxonomy",
+        "description": "Taxonomie samt Abgleich mit Paperless.",
+        "operationId": "get_taxonomy_api_taxonomy_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxonomyState"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "taxonomy"
+        ],
+        "summary": "Save Taxonomy",
+        "description": "Speichert die Taxonomie (auch für den Import einer Sicherung).",
+        "operationId": "save_taxonomy_api_taxonomy_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Taxonomy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxonomyState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/taxonomy/sync": {
+      "post": {
+        "tags": [
+          "taxonomy"
+        ],
+        "summary": "Sync Taxonomy",
+        "description": "Verknüpft gleichnamige Objekte und legt fehlende in Paperless an.",
+        "operationId": "sync_taxonomy_api_taxonomy_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxonomyState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/taxonomy/export": {
+      "get": {
+        "tags": [
+          "taxonomy"
+        ],
+        "summary": "Export Taxonomy",
+        "description": "Sicherung als JSON-Datei.",
+        "operationId": "export_taxonomy_api_taxonomy_export_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Taxonomy"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/paperless/lookups": {
+      "get": {
+        "tags": [
+          "paperless"
+        ],
+        "summary": "Lookups",
+        "operationId": "lookups_api_paperless_lookups_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lookups"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "CorrespondentOption": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "excluded": {
+            "type": "boolean",
+            "title": "Excluded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "excluded"
+        ],
+        "title": "CorrespondentOption"
+      },
+      "Group": {
+        "type": "string",
+        "enum": [
+          "document_types",
+          "persons",
+          "areas",
+          "status"
+        ]
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -132,6 +304,57 @@
         ],
         "title": "HostStatus"
       },
+      "Lookups": {
+        "properties": {
+          "correspondents": {
+            "items": {
+              "$ref": "#/components/schemas/CorrespondentOption"
+            },
+            "type": "array",
+            "title": "Correspondents"
+          },
+          "document_types": {
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "type": "array",
+            "title": "Document Types"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "type": "array",
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "correspondents",
+          "document_types",
+          "tags"
+        ],
+        "title": "Lookups",
+        "description": "Auswahllisten für die Oberfläche."
+      },
+      "Option": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "Option"
+      },
       "PaperlessStatus": {
         "properties": {
           "reachable": {
@@ -199,12 +422,140 @@
         ],
         "title": "PaperlessStatus"
       },
+      "PersonEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "paperless_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paperless Id"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PersonEntry"
+      },
       "Problem": {
         "type": "string",
         "enum": [
           "unreachable",
           "auth"
         ]
+      },
+      "StatusTags": {
+        "properties": {
+          "todo": {
+            "$ref": "#/components/schemas/TaxonomyEntry",
+            "default": {
+              "name": "ai:todo",
+              "description": "wartet auf Auslesen"
+            }
+          },
+          "review": {
+            "$ref": "#/components/schemas/TaxonomyEntry",
+            "default": {
+              "name": "ai:prüfen",
+              "description": "Vorschlag liegt vor"
+            }
+          },
+          "done": {
+            "$ref": "#/components/schemas/TaxonomyEntry",
+            "default": {
+              "name": "ai:fertig",
+              "description": "geprüft und übernommen"
+            }
+          },
+          "error": {
+            "$ref": "#/components/schemas/TaxonomyEntry",
+            "default": {
+              "name": "ai:fehler",
+              "description": "konnte nicht ausgelesen werden"
+            }
+          }
+        },
+        "type": "object",
+        "title": "StatusTags"
+      },
+      "SyncItem": {
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/Group"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SyncStatus"
+          },
+          "paperless_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paperless Id"
+          },
+          "paperless_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paperless Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "name",
+          "status",
+          "paperless_id",
+          "paperless_name"
+        ],
+        "title": "SyncItem"
+      },
+      "SyncStatus": {
+        "type": "string",
+        "enum": [
+          "linked",
+          "link_by_name",
+          "missing",
+          "stale"
+        ],
+        "title": "SyncStatus"
       },
       "SystemStatus": {
         "properties": {
@@ -225,6 +576,163 @@
           "hosts"
         ],
         "title": "SystemStatus"
+      },
+      "Taxonomy": {
+        "properties": {
+          "document_types": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyEntry"
+            },
+            "type": "array",
+            "title": "Document Types",
+            "default": []
+          },
+          "persons": {
+            "items": {
+              "$ref": "#/components/schemas/PersonEntry"
+            },
+            "type": "array",
+            "title": "Persons",
+            "default": []
+          },
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyEntry"
+            },
+            "type": "array",
+            "title": "Areas",
+            "default": []
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusTags",
+            "default": {
+              "todo": {
+                "description": "wartet auf Auslesen",
+                "name": "ai:todo"
+              },
+              "review": {
+                "description": "Vorschlag liegt vor",
+                "name": "ai:prüfen"
+              },
+              "done": {
+                "description": "geprüft und übernommen",
+                "name": "ai:fertig"
+              },
+              "error": {
+                "description": "konnte nicht ausgelesen werden",
+                "name": "ai:fehler"
+              }
+            }
+          },
+          "correspondent_exclude_pattern": {
+            "type": "string",
+            "title": "Correspondent Exclude Pattern",
+            "default": "^o_"
+          },
+          "remove_inbox_tag_on_accept": {
+            "type": "boolean",
+            "title": "Remove Inbox Tag On Accept",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "Taxonomy"
+      },
+      "TaxonomyEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "paperless_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paperless Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "TaxonomyEntry"
+      },
+      "TaxonomyState": {
+        "properties": {
+          "taxonomy": {
+            "$ref": "#/components/schemas/Taxonomy"
+          },
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          },
+          "sync": {
+            "items": {
+              "$ref": "#/components/schemas/SyncItem"
+            },
+            "type": "array",
+            "title": "Sync"
+          }
+        },
+        "type": "object",
+        "required": [
+          "taxonomy",
+          "configured",
+          "sync"
+        ],
+        "title": "TaxonomyState"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
       }
     }
   }

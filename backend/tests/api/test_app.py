@@ -1,4 +1,5 @@
 import json
+import tempfile
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
@@ -18,11 +19,15 @@ OLLAMA_URL = "http://mac.test:11434"
 type ClientFactory = Callable[[FastAPI], Awaitable[httpx.AsyncClient]]
 
 
+_TMP = tempfile.TemporaryDirectory()
+
+
 def make_settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
         "paperless_url": p.BASE_URL,
         "paperless_token": "t",
         "ollama_hosts": [{"name": "Mac", "url": OLLAMA_URL}],
+        "data_dir": tempfile.mkdtemp(dir=_TMP.name),
     }
     values.update(overrides)
     return Settings.model_validate(values)

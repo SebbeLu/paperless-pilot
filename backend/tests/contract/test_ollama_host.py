@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from paperless_pilot.adapters.ollama import OllamaHost
 from paperless_pilot.domain.errors import (
     InvalidLlmOutputError,
+    LlmHostUnavailableError,
     NotFoundError,
     ServiceUnavailableError,
 )
@@ -82,7 +83,7 @@ async def test_generate_structured_sends_schema_and_parses_reply(
     assert body["model"] == "gemma4:26b"
     assert body["stream"] is False
     assert body["format"] == Invoice.model_json_schema()
-    assert body["options"] == {"temperature": 0}
+    assert body["options"] == {"temperature": 0, "num_ctx": 8192}
     assert body["messages"] == [
         {"role": "system", "content": "Du bist ein Archivar."},
         {
@@ -152,3 +153,23 @@ async def test_offline_host_raises_unavailable(
 async def test_create_and_close() -> None:
     host = OllamaHost.create("PC", BASE_URL, probe_timeout=1, generate_timeout=1)
     await host.aclose()
+
+
+async def test_slow_generation_counts_against_job_not_host(
+    host: OllamaHost, api: respx.MockRouter
+) -> None:
+    api.post("/api/chat").mock(side_effect=httpx.ReadTimeout("zu langsam"))
+
+    with pytest.raises(ServiceUnavailableError) as exc_info:
+        await host.generate_structured(model="m", prompt="p", output_type=Invoice)
+
+    assert not isinstance(exc_info.value, LlmHostUnavailableError)
+
+
+async def test_unreachable_host_is_reported_as_host_problem(
+    host: OllamaHost, api: respx.MockRouter
+) -> None:
+    api.post("/api/chat").mock(side_effect=httpx.ConnectError("refused"))
+
+    with pytest.raises(LlmHostUnavailableError):
+        await host.generate_structured(model="m", prompt="p", output_type=Invoice)

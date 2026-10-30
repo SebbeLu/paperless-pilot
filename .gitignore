@@ -22,3 +22,6 @@ frontend/coverage/
 .DS_Store
 .idea/
 .vscode/
+
+# Lokale Datenbank
+backend/.data/

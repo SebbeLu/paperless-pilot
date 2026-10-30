@@ -38,14 +38,20 @@ Danach `http://localhost:8080` öffnen.
 
 ## Betrieb auf Unraid
 
-Die CI baut bei jedem Push auf `main` das Image `ghcr.io/sebbelu/paperless-pilot:latest` (amd64 und arm64).
+Die CI baut bei jedem Push auf `main` das Image `ghcr.io/sebbelu/paperless-pilot:latest` (amd64 und arm64). Für Unraid liegt eine Vorlage in [unraid/paperless-pilot.xml](unraid/paperless-pilot.xml). Im Unraid-Terminal laden:
+
+```bash
+curl -fsSL -o /boot/config/plugins/dockerMan/templates-user/my-paperless-pilot.xml https://raw.githubusercontent.com/SebbeLu/paperless-pilot/main/unraid/paperless-pilot.xml
+```
+
+Danach unter *Docker → Add Container* die Vorlage „paperless-pilot“ wählen. Der Container läuft als `99:100` (nobody:users), damit er in `appdata` schreiben darf. Ohne Unraid geht es auch mit `docker run`:
 
 ```bash
 docker run -d --name paperless-pilot -p 8080:8080 -v /mnt/user/appdata/paperless-pilot:/data -e PILOT_PAPERLESS_URL=http://paperless.local:8000 -e PILOT_PAPERLESS_TOKEN_FILE=/data/paperless_token -e 'PILOT_OLLAMA_HOSTS=[{"name":"Mac","url":"http://mac.local:11434"}]' ghcr.io/sebbelu/paperless-pilot:latest
 ```
 
 **Einrichtung:**
-1. **Paperless-Token:** In Paperless unter *Mein Profil* einen API-Token erzeugen und in `/mnt/user/appdata/paperless-pilot/paperless_token` ablegen.
+1. **Paperless-Token:** In Paperless unter *Mein Profil* einen API-Token erzeugen und in `/mnt/user/appdata/paperless-pilot/paperless_token` ablegen (lesbar für den Container-Benutzer).
 2. **Ollama-Rechner:** Ollama muss im Netz lauschen (`OLLAMA_HOST=0.0.0.0`, Port 11434 freigeben). Das Modell holst du mit `ollama pull gemma4:26b`.
 3. **Taxonomie:** In der Oberfläche unter *Regeln* anlegen oder eine Sicherung importieren, danach *In Paperless anlegen*.
 4. **Workflow in Paperless:** Auslöser „Dokument hinzugefügt“, Aktion „Tag `ai:todo` zuweisen“.

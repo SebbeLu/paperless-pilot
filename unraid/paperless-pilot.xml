@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>paperless-pilot</Name>
+  <Repository>ghcr.io/sebbelu/paperless-pilot:latest</Repository>
+  <Registry>https://github.com/SebbeLu/paperless-pilot/pkgs/container/paperless-pilot</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/SebbeLu/paperless-pilot/issues</Support>
+  <Project>https://github.com/SebbeLu/paperless-pilot</Project>
+  <Overview>Bearbeitet Paperless-ngx-Dokumente automatisch mit lokalen Sprachmodellen über Ollama: Dokumenttyp, Absender, Datum, Personen, Lebensbereich und Titel. Jeder Vorschlag wird vor dem Schreiben geprüft und lässt sich rückgängig machen.</Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <ExtraParams>--user 99:100</ExtraParams>
+  <Config Name="Oberfläche" Target="8080" Default="8080" Mode="tcp" Description="Port der Weboberfläche" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Daten" Target="/data" Default="/mnt/user/appdata/paperless-pilot" Mode="rw" Description="Datenbank und Token-Dateien" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/paperless-pilot</Config>
+  <Config Name="Paperless-Adresse" Target="PILOT_PAPERLESS_URL" Default="" Mode="" Description="z. B. http://192.0.2.10:8000" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="Paperless-Token-Datei" Target="PILOT_PAPERLESS_TOKEN_FILE" Default="/data/paperless_token" Mode="" Description="Datei mit dem API-Token, im Daten-Ordner" Type="Variable" Display="always" Required="true" Mask="false">/data/paperless_token</Config>
+  <Config Name="Ollama-Rechner" Target="PILOT_OLLAMA_HOSTS" Default="" Mode="" Description="JSON-Liste, z. B. [{&quot;name&quot;:&quot;Mac&quot;,&quot;url&quot;:&quot;http://192.0.2.20:11434&quot;}]" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="Modell" Target="PILOT_EXTRACTION_MODEL" Default="gemma4:26b" Mode="" Description="Standardmodell fürs Auslesen" Type="Variable" Display="advanced" Required="false" Mask="false">gemma4:26b</Config>
+  <Config Name="Zeitzone" Target="PILOT_TIMEZONE" Default="Europe/Berlin" Mode="" Description="Für Zeitfenster und Datumsprüfungen" Type="Variable" Display="advanced" Required="false" Mask="false">Europe/Berlin</Config>
+</Container>

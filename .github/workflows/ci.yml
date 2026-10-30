@@ -50,7 +50,7 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - name: Integrationstest gegen echtes Paperless-ngx
-        run: uv run pytest -m integration --timeout=600 -v
+        run: uv run pytest -m integration --timeout=900 -v -s
 
   frontend:
     runs-on: ubuntu-latest

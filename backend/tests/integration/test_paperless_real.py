@@ -22,7 +22,7 @@ pytestmark = pytest.mark.integration
 PAPERLESS_IMAGE = "ghcr.io/paperless-ngx/paperless-ngx:3.2.1"
 ADMIN_USER = "pilot"
 ADMIN_PASSWORD = "pilot-integration"  # noqa: S105 - nur im Wegwerf-Container
-STARTUP_TIMEOUT_SECONDS = 300
+STARTUP_TIMEOUT_SECONDS = 420
 
 
 @dataclass(frozen=True)
@@ -31,18 +31,32 @@ class PaperlessServer:
     token: str
 
 
-def _wait_until_ready(url: str) -> None:
+def _report_startup_failure(container: DockerContainer, reason: str) -> None:
+    """Macht den Fehler samt Container-Log als GitHub-Annotation sichtbar (auch ohne Anmeldung)."""
+    stdout, stderr = container.get_logs()
+    lines = (stdout + stderr).decode(errors="replace").splitlines()[-40:]
+    message = "%0A".join([reason, *lines])  # %0A = Zeilenumbruch in Workflow-Befehlen
+    print(f"::error title=Paperless-Start::{message}")
+    pytest.fail(reason)
+
+
+def _wait_until_ready(url: str, container: DockerContainer) -> None:
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
+    last_seen = "keine Antwort"
     while time.monotonic() < deadline:
         try:
             # Jede HTTP-Antwort von Django heißt: Migrationen und Admin-Anlage sind durch.
             # Ohne Anmeldung leitet /api/ auf den Login um (302), daher kein fester Statuscode.
-            if httpx.get(f"{url}/api/", timeout=5).status_code < 500:
+            status = httpx.get(f"{url}/api/", timeout=5).status_code
+            if status < 500:
                 return
-        except httpx.TransportError:
-            pass
+            last_seen = f"HTTP {status}"
+        except httpx.TransportError as exc:
+            last_seen = type(exc).__name__
         time.sleep(3)
-    pytest.fail(f"Paperless unter {url} ist nicht rechtzeitig gestartet")
+    _report_startup_failure(
+        container, f"Paperless unter {url} nicht rechtzeitig gestartet (zuletzt: {last_seen})"
+    )
 
 
 @pytest.fixture(scope="module")
@@ -59,7 +73,7 @@ def paperless_server() -> Iterator[PaperlessServer]:
         .with_exposed_ports(8000) as paperless,
     ):
         url = f"http://{paperless.get_container_host_ip()}:{paperless.get_exposed_port(8000)}"
-        _wait_until_ready(url)
+        _wait_until_ready(url, paperless)
         response = httpx.post(
             f"{url}/api/token/",
             data={"username": ADMIN_USER, "password": ADMIN_PASSWORD},

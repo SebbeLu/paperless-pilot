@@ -1,6 +1,6 @@
 """Domänenmodell: Paperless-Objekte so, wie der Kern sie braucht – unabhängig vom API-Format."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -28,6 +28,7 @@ class Document(_Frozen):
     mime_type: str
     original_file_name: str
     custom_fields: tuple[CustomFieldValue, ...] = ()
+    modified: datetime | None = None
 
 
 class Correspondent(_Frozen):

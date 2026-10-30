@@ -1,7 +1,7 @@
 """Adapter für die REST-API von Paperless-ngx (getestet mit 3.2, API-Version 10)."""
 
 from collections.abc import AsyncIterator, Sequence
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Self
 
 import httpx
@@ -170,6 +170,7 @@ def _to_document(data: JsonObject) -> Document:
             CustomFieldValue(field_id=cf["field"], value=cf.get("value"))
             for cf in data.get("custom_fields", ())
         ),
+        modified=datetime.fromisoformat(data["modified"]) if data.get("modified") else None,
     )
 
 

@@ -232,9 +232,7 @@ def _answer(text: str, schema: dict[str, Any]) -> dict[str, Any]:
         "correspondent": first_line,
         "correspondent_evidence": first_line,
         "document_date": date_match.group(0) if date_match else None,
-        "date_evidence": text[max(0, (date_match.start() - 15)) : date_match.end()]
-        if date_match
-        else None,
+        "date_evidence": _line_with(text, date_match.group(0)) if date_match else None,
         "title": _title(text),
     }
     if "persons" in props:
@@ -243,6 +241,10 @@ def _answer(text: str, schema: dict[str, Any]) -> dict[str, Any]:
     if "area" in props:
         answer["area"] = pick("area", _AREA_KEYWORDS, "Sonstiges")
     return answer
+
+
+def _line_with(text: str, needle: str) -> str:
+    return next(line.strip() for line in text.splitlines() if needle in line)
 
 
 def _enum(prop: dict[str, Any], schema: dict[str, Any]) -> list[str]:
@@ -254,7 +256,7 @@ def _enum(prop: dict[str, Any], schema: dict[str, Any]) -> list[str]:
 def _title(text: str) -> str:
     lines = [line.strip() for line in text.splitlines()[1:] if line.strip()]
     for line in lines:
-        if not _DATE.search(line) and not line.startswith(("Frau", "Herrn", "Patient", "Familie")):
+        if not _DATE.search(line) and "Beispiel" not in line:  # erfundene Namen überspringen
             return " ".join(line.split()[:6])
     return "Dokument"
 

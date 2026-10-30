@@ -28,3 +28,4 @@ backend/.data/
 backend/.e2e-data/
 frontend/test-results/
 frontend/playwright-report/
+backend/.demo-data/

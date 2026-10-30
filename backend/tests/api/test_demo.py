@@ -57,6 +57,8 @@ def test_demo_answer_respects_allowed_values() -> None:
     assert answer["persons"] == ["Kim"]
     assert answer["area"] == "Andere"
     assert answer["document_date"] == "01.02.2026"
+    assert answer["date_evidence"] == "Bescheid vom 01.02.2026"
+    assert answer["title"] == "Dokument"  # Namens- und Datumszeilen sind kein Titel
 
     plain = _answer("Nur eine Zeile", {"properties": {"document_type": {"enum": []}}})
     assert plain["title"] == "Dokument"

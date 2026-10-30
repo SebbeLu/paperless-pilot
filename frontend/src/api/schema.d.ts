@@ -125,6 +125,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/hosts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Hosts
+         * @description Rechner mit Erreichbarkeit, Modellen, Freigabe und laufendem Auftrag.
+         */
+        get: operations["list_hosts_api_hosts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hosts/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Hosts
+         * @description Sofort neu prüfen statt auf den nächsten Takt zu warten.
+         */
+        post: operations["refresh_hosts_api_hosts_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hosts/{name}/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Rules
+         * @description Pause, Zeitfenster und Home-Assistant-Regeln eines Rechners.
+         */
+        put: operations["update_rules_api_hosts__name__rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jobs */
+        get: operations["list_jobs_api_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/enqueue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue
+         * @description Posteingang (setzt den Todo-Tag in Paperless) oder einzelne Dokumente einreihen.
+         */
+        post: operations["enqueue_api_jobs_enqueue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry
+         * @description Endgültig fehlgeschlagenen Auftrag erneut versuchen.
+         */
+        post: operations["retry_api_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Events
+         * @description Server-Sent Events: die Oberfläche lädt betroffene Daten neu.
+         */
+        get: operations["events_api_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -137,6 +274,43 @@ export interface components {
             name: string;
             /** Excluded */
             excluded: boolean;
+        };
+        /** Decision */
+        Decision: {
+            /** Allowed */
+            allowed: boolean;
+            /** Reason */
+            reason: string;
+        };
+        /** EnqueueRequest */
+        EnqueueRequest: {
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "inbox" | "documents";
+            /**
+             * Document Ids
+             * @default []
+             */
+            document_ids: number[];
+        };
+        /** EnqueueResult */
+        EnqueueResult: {
+            /** Enqueued */
+            enqueued: number;
+            /** Already Queued */
+            already_queued: number;
+        };
+        /** EntityState */
+        EntityState: {
+            /** State */
+            state: string;
+            /**
+             * Last Changed
+             * Format: date-time
+             */
+            last_changed: string;
         };
         /** @enum {string} */
         Group: "document_types" | "persons" | "areas" | "status";
@@ -159,6 +333,103 @@ export interface components {
              */
             version: string;
         };
+        /**
+         * HostRules
+         * @description Freigaben eines Rechners. Ohne Zeitfenster und ohne Leerlauf-Entität: immer frei.
+         */
+        HostRules: {
+            /**
+             * Paused
+             * @default false
+             */
+            paused: boolean;
+            /** Window */
+            window?: string | null;
+            /** Idle Entity */
+            idle_entity?: string | null;
+            /**
+             * Idle State
+             * @default off
+             */
+            idle_state: string;
+            /**
+             * Idle Minutes
+             * @default 10
+             */
+            idle_minutes: number;
+            /** Block Entity */
+            block_entity?: string | null;
+            /**
+             * Block State
+             * @default on
+             */
+            block_state: string;
+        };
+        /** HostState */
+        HostState: {
+            /** Name */
+            name: string;
+            /** Url */
+            url: string;
+            /** Model */
+            model: string;
+            /**
+             * Online
+             * @default false
+             */
+            online: boolean;
+            /** Version */
+            version?: string | null;
+            /**
+             * Models
+             * @default []
+             */
+            models: string[];
+            /**
+             * Has Model
+             * @default false
+             */
+            has_model: boolean;
+            problem?: components["schemas"]["Problem"] | null;
+            /** Error */
+            error?: string | null;
+            /** Checked At */
+            checked_at?: string | null;
+            /**
+             * @default {
+             *       "paused": false,
+             *       "idle_state": "off",
+             *       "idle_minutes": 10,
+             *       "block_state": "on"
+             *     }
+             */
+            rules: components["schemas"]["HostRules"];
+            /**
+             * @default {
+             *       "allowed": false,
+             *       "reason": "Noch nicht geprüft"
+             *     }
+             */
+            decision: components["schemas"]["Decision"];
+            /**
+             * Entity States
+             * @default {}
+             */
+            entity_states: {
+                [key: string]: components["schemas"]["EntityState"];
+            };
+            /** Ha Available */
+            ha_available?: boolean | null;
+            /** Busy Document Id */
+            busy_document_id?: number | null;
+            /**
+             * Processed
+             * @default 0
+             */
+            processed: number;
+            /** Last Duration Ms */
+            last_duration_ms?: number | null;
+        };
         /** HostStatus */
         HostStatus: {
             /** Name */
@@ -178,6 +449,50 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** Job */
+        Job: {
+            /** Id */
+            id: number;
+            /** Document Id */
+            document_id: number;
+            kind: components["schemas"]["JobKind"];
+            status: components["schemas"]["JobStatus"];
+            /** Attempts */
+            attempts: number;
+            /** Priority */
+            priority: number;
+            /**
+             * Not Before
+             * Format: date-time
+             */
+            not_before: string;
+            /** Lease Owner */
+            lease_owner: string | null;
+            /** Lease Expires At */
+            lease_expires_at: string | null;
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * JobKind
+         * @enum {string}
+         */
+        JobKind: "extract";
+        /**
+         * JobStatus
+         * @enum {string}
+         */
+        JobStatus: "queued" | "running" | "succeeded" | "failed";
         /**
          * Lookups
          * @description Auswahllisten für die Oberfläche.
@@ -230,6 +545,29 @@ export interface components {
         };
         /** @enum {string} */
         Problem: "unreachable" | "auth";
+        /** QueueStats */
+        QueueStats: {
+            /**
+             * Queued
+             * @default 0
+             */
+            queued: number;
+            /**
+             * Running
+             * @default 0
+             */
+            running: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /**
+             * Succeeded
+             * @default 0
+             */
+            succeeded: number;
+        };
         /** StatusTags */
         StatusTags: {
             /**
@@ -282,6 +620,20 @@ export interface components {
             paperless: components["schemas"]["PaperlessStatus"];
             /** Hosts */
             hosts: components["schemas"]["HostStatus"][];
+            /**
+             * @default {
+             *       "queued": 0,
+             *       "running": 0,
+             *       "failed": 0,
+             *       "succeeded": 0
+             *     }
+             */
+            queue: components["schemas"]["QueueStats"];
+            /**
+             * Open Suggestions
+             * @default 0
+             */
+            open_suggestions: number;
         };
         /** Taxonomy */
         Taxonomy: {
@@ -524,6 +876,194 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Lookups"];
                 };
+            };
+        };
+    };
+    list_hosts_api_hosts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostState"][];
+                };
+            };
+        };
+    };
+    refresh_hosts_api_hosts_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostState"][];
+                };
+            };
+        };
+    };
+    update_rules_api_hosts__name__rules_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostRules"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_jobs_api_jobs_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["JobStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enqueue_api_jobs_enqueue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnqueueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnqueueResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_api_jobs__job_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    events_api_events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

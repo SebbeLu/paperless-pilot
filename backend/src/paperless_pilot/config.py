@@ -40,6 +40,8 @@ class Settings(BaseSettings):
 
     # Demo-Modus: erfundene Dokumente, Attrappen statt Paperless und Ollama
     demo: bool = False
+    # Hintergrundaufgaben (Rechner-Prüfung, Eingang, Arbeiter); in Tests aus
+    background_tasks: bool = True
 
     # Gebautes Frontend; fehlt es, liefert der Dienst nur die API aus.
     static_dir: Path | None = None

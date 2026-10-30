@@ -8,6 +8,7 @@ import {
   type LucideIcon,
   Sparkles,
 } from "lucide-react";
+import { useLiveUpdates } from "@/hooks/use-live-updates";
 
 export type NavItem = { to: string; label: string; icon: LucideIcon; hint: string };
 
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export function AppShell() {
+  useLiveUpdates();
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside className="shrink-0 border-b border-zinc-200 bg-white px-3 py-3 md:w-60 md:border-r md:border-b-0 md:py-5 dark:border-zinc-800 dark:bg-zinc-900">

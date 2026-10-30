@@ -1,9 +1,11 @@
-import { AlertTriangle, FileText, Inbox, RefreshCw, Server } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { AlertTriangle, FileText, Inbox, ListPlus, RefreshCw, Server } from "lucide-react";
 import type { ReactNode } from "react";
-import type { HostStatus, PaperlessStatus } from "@/api/client";
-import { useSystemStatus } from "@/api/queries";
+import type { HostStatus, PaperlessStatus, SystemStatus } from "@/api/client";
+import { useEnqueueInbox, useJobs, useRetryJob, useSystemStatus } from "@/api/queries";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +45,7 @@ export function OverviewPage() {
       ) : (
         <div className="space-y-8">
           <KeyFigures paperless={data.paperless} hosts={data.hosts} />
+          <WorkSection status={data} />
           <section aria-labelledby="connections-heading">
             <h2
               id="connections-heading"
@@ -88,11 +91,97 @@ function KeyFigures({ paperless, hosts }: { paperless: PaperlessStatus; hosts: H
   );
 }
 
+function WorkSection({ status }: { status: SystemStatus }) {
+  const enqueue = useEnqueueInbox();
+  const { queue, open_suggestions: open } = status;
+  const waiting = queue.queued + queue.running;
+  return (
+    <section aria-labelledby="work-heading" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="work-heading" className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          Arbeitsstand
+        </h2>
+        <Button variant="primary" onClick={() => enqueue.mutate()} disabled={enqueue.isPending}>
+          <ListPlus className="size-4" aria-hidden="true" />
+          Posteingang einreihen
+        </Button>
+      </div>
+      {enqueue.data && (
+        <Alert tone="success">
+          {enqueue.data.enqueued === 0
+            ? "Keine neuen Dokumente im Posteingang."
+            : `${enqueue.data.enqueued} Dokument(e) eingereiht – sie werden ausgelesen, sobald ein Rechner frei ist.`}
+        </Alert>
+      )}
+      {enqueue.error && <Alert tone="danger">{enqueue.error.message}</Alert>}
+      <dl className="grid gap-4 sm:grid-cols-3">
+        <Card className="p-5">
+          <dt className="text-sm text-zinc-500 dark:text-zinc-400">Zu prüfen</dt>
+          <dd className="mt-2 flex items-baseline justify-between gap-2">
+            <span className="text-3xl font-semibold tabular-nums tracking-tight">
+              {numberFormat.format(open)}
+            </span>
+            {open > 0 && (
+              <Link
+                to="/pruefen"
+                className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-100"
+              >
+                Jetzt prüfen →
+              </Link>
+            )}
+          </dd>
+        </Card>
+        <Figure
+          icon={null}
+          label={queue.running ? "Wartend (1 in Arbeit)" : "Wartend"}
+          value={numberFormat.format(waiting)}
+        />
+        <Figure icon={null} label="Fehler" value={numberFormat.format(queue.failed)} />
+      </dl>
+      {queue.failed > 0 && <FailedJobs />}
+    </section>
+  );
+}
+
+function FailedJobs() {
+  const { data } = useJobs("failed");
+  const retry = useRetryJob();
+  if (!data?.length) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Fehlgeschlagen</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+          {data.map((job) => (
+            <li key={job.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <span>
+                Dokument {job.document_id}
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                  {job.last_error}
+                </span>
+              </span>
+              <Button
+                onClick={() => retry.mutate(job.id)}
+                disabled={retry.isPending}
+                aria-label={`Dokument ${job.document_id} erneut versuchen`}
+              >
+                Erneut versuchen
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 function Figure({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <Card className="p-5">
       <dt className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-        <span aria-hidden="true">{icon}</span>
+        {icon && <span aria-hidden="true">{icon}</span>}
         {label}
       </dt>
       <dd className="mt-2 text-3xl font-semibold tabular-nums tracking-tight">{value}</dd>

@@ -47,7 +47,9 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "N", "S", 
 ignore = ["PLR2004", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.pylint]
-max-args = 7
+# Konstruktoren der Anwendungsfälle bekommen ihre Abhängigkeiten explizit übergeben
+max-args = 9
+max-positional-args = 9
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "PLR2004", "S106"]

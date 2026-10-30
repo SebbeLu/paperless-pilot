@@ -6,7 +6,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from paperless_pilot.adapters.db.repositories import JobRepository, SuggestionRepository
 from paperless_pilot.domain.errors import AuthenticationError, PilotError
+from paperless_pilot.domain.jobs import QueueStats
 from paperless_pilot.domain.ports import DocumentRepository, LlmHost
 
 # Art des Problems, damit die Oberfläche passende Hinweise geben kann.
@@ -39,18 +41,33 @@ class HostStatus(BaseModel):
 class SystemStatus(BaseModel):
     paperless: PaperlessStatus
     hosts: list[HostStatus]
+    queue: QueueStats = QueueStats()
+    open_suggestions: int = 0
 
 
 class SystemStatusService:
-    def __init__(self, paperless: DocumentRepository, hosts: Sequence[LlmHost]) -> None:
+    def __init__(
+        self,
+        paperless: DocumentRepository,
+        hosts: Sequence[LlmHost],
+        jobs: JobRepository | None = None,
+        suggestions: SuggestionRepository | None = None,
+    ) -> None:
         self._paperless = paperless
         self._hosts = hosts
+        self._jobs = jobs
+        self._suggestions = suggestions
 
     async def get_status(self) -> SystemStatus:
         async with asyncio.TaskGroup() as tasks:
             paperless = tasks.create_task(self._paperless_status())
             hosts = [tasks.create_task(self._host_status(h)) for h in self._hosts]
-        return SystemStatus(paperless=paperless.result(), hosts=[h.result() for h in hosts])
+        return SystemStatus(
+            paperless=paperless.result(),
+            hosts=[h.result() for h in hosts],
+            queue=await self._jobs.stats() if self._jobs else QueueStats(),
+            open_suggestions=await self._suggestions.count_open() if self._suggestions else 0,
+        )
 
     async def _paperless_status(self) -> PaperlessStatus:
         try:

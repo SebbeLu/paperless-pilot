@@ -43,7 +43,12 @@ async def api(
 ) -> AsyncIterator[Api]:
     availability = FakeAvailability()
     settings = Settings.model_validate(
-        {"paperless_url": "http://paperless.test", "paperless_token": "t", "data_dir": tmp_path}
+        {
+            "paperless_url": "http://paperless.test",
+            "paperless_token": "t",
+            "data_dir": tmp_path,
+            "background_tasks": False,
+        }
     )
 
     @asynccontextmanager

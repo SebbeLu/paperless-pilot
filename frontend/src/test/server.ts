@@ -2,7 +2,11 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import type { SystemStatus } from "@/api/client";
 
+export const emptyQueue = { queued: 0, running: 0, failed: 0, succeeded: 0 };
+
 export const healthyStatus: SystemStatus = {
+  queue: { queued: 71, running: 1, failed: 1, succeeded: 12 },
+  open_suggestions: 23,
   paperless: {
     reachable: true,
     version: "3.2.1",

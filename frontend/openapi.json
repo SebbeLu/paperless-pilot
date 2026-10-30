@@ -175,6 +175,264 @@
           }
         }
       }
+    },
+    "/api/hosts": {
+      "get": {
+        "tags": [
+          "hosts"
+        ],
+        "summary": "List Hosts",
+        "description": "Rechner mit Erreichbarkeit, Modellen, Freigabe und laufendem Auftrag.",
+        "operationId": "list_hosts_api_hosts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HostState"
+                  },
+                  "type": "array",
+                  "title": "Response List Hosts Api Hosts Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hosts/refresh": {
+      "post": {
+        "tags": [
+          "hosts"
+        ],
+        "summary": "Refresh Hosts",
+        "description": "Sofort neu prüfen statt auf den nächsten Takt zu warten.",
+        "operationId": "refresh_hosts_api_hosts_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HostState"
+                  },
+                  "type": "array",
+                  "title": "Response Refresh Hosts Api Hosts Refresh Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hosts/{name}/rules": {
+      "put": {
+        "tags": [
+          "hosts"
+        ],
+        "summary": "Update Rules",
+        "description": "Pause, Zeitfenster und Home-Assistant-Regeln eines Rechners.",
+        "operationId": "update_rules_api_hosts__name__rules_put",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostRules"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "List Jobs",
+        "operationId": "list_jobs_api_jobs_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/JobStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Job"
+                  },
+                  "title": "Response List Jobs Api Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/enqueue": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Enqueue",
+        "description": "Posteingang (setzt den Todo-Tag in Paperless) oder einzelne Dokumente einreihen.",
+        "operationId": "enqueue_api_jobs_enqueue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnqueueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnqueueResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/retry": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Retry",
+        "description": "Endgültig fehlgeschlagenen Auftrag erneut versuchen.",
+        "operationId": "retry_api_jobs__job_id__retry_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Events",
+        "description": "Server-Sent Events: die Oberfläche lädt betroffene Daten neu.",
+        "operationId": "events_api_events_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -201,6 +459,86 @@
           "excluded"
         ],
         "title": "CorrespondentOption"
+      },
+      "Decision": {
+        "properties": {
+          "allowed": {
+            "type": "boolean",
+            "title": "Allowed"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "allowed",
+          "reason"
+        ],
+        "title": "Decision"
+      },
+      "EnqueueRequest": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "inbox",
+              "documents"
+            ],
+            "title": "Scope"
+          },
+          "document_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Document Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope"
+        ],
+        "title": "EnqueueRequest"
+      },
+      "EnqueueResult": {
+        "properties": {
+          "enqueued": {
+            "type": "integer",
+            "title": "Enqueued"
+          },
+          "already_queued": {
+            "type": "integer",
+            "title": "Already Queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enqueued",
+          "already_queued"
+        ],
+        "title": "EnqueueResult"
+      },
+      "EntityState": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "last_changed": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Changed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "last_changed"
+        ],
+        "title": "EntityState"
       },
       "Group": {
         "type": "string",
@@ -240,6 +578,213 @@
         },
         "type": "object",
         "title": "Health"
+      },
+      "HostRules": {
+        "properties": {
+          "paused": {
+            "type": "boolean",
+            "title": "Paused",
+            "default": false
+          },
+          "window": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window"
+          },
+          "idle_entity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Entity"
+          },
+          "idle_state": {
+            "type": "string",
+            "title": "Idle State",
+            "default": "off"
+          },
+          "idle_minutes": {
+            "type": "integer",
+            "title": "Idle Minutes",
+            "default": 10
+          },
+          "block_entity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block Entity"
+          },
+          "block_state": {
+            "type": "string",
+            "title": "Block State",
+            "default": "on"
+          }
+        },
+        "type": "object",
+        "title": "HostRules",
+        "description": "Freigaben eines Rechners. Ohne Zeitfenster und ohne Leerlauf-Entität: immer frei."
+      },
+      "HostState": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "default": false
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models",
+            "default": []
+          },
+          "has_model": {
+            "type": "boolean",
+            "title": "Has Model",
+            "default": false
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Problem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/HostRules",
+            "default": {
+              "paused": false,
+              "idle_state": "off",
+              "idle_minutes": 10,
+              "block_state": "on"
+            }
+          },
+          "decision": {
+            "$ref": "#/components/schemas/Decision",
+            "default": {
+              "allowed": false,
+              "reason": "Noch nicht geprüft"
+            }
+          },
+          "entity_states": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EntityState"
+            },
+            "type": "object",
+            "title": "Entity States",
+            "default": {}
+          },
+          "ha_available": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ha Available"
+          },
+          "busy_document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Busy Document Id"
+          },
+          "processed": {
+            "type": "integer",
+            "title": "Processed",
+            "default": 0
+          },
+          "last_duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Duration Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "url",
+          "model"
+        ],
+        "title": "HostState"
       },
       "HostStatus": {
         "properties": {
@@ -303,6 +848,114 @@
           "reachable"
         ],
         "title": "HostStatus"
+      },
+      "Job": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "integer",
+            "title": "Document Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/JobKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "not_before": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Not Before"
+          },
+          "lease_owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lease Owner"
+          },
+          "lease_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lease Expires At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "kind",
+          "status",
+          "attempts",
+          "priority",
+          "not_before",
+          "lease_owner",
+          "lease_expires_at",
+          "last_error",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Job"
+      },
+      "JobKind": {
+        "type": "string",
+        "enum": [
+          "extract"
+        ],
+        "title": "JobKind"
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed"
+        ],
+        "title": "JobStatus"
       },
       "Lookups": {
         "properties": {
@@ -468,6 +1121,32 @@
           "auth"
         ]
       },
+      "QueueStats": {
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "title": "Queued",
+            "default": 0
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running",
+            "default": 0
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "default": 0
+          },
+          "succeeded": {
+            "type": "integer",
+            "title": "Succeeded",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "QueueStats"
+      },
       "StatusTags": {
         "properties": {
           "todo": {
@@ -568,6 +1247,20 @@
             },
             "type": "array",
             "title": "Hosts"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/QueueStats",
+            "default": {
+              "queued": 0,
+              "running": 0,
+              "failed": 0,
+              "succeeded": 0
+            }
+          },
+          "open_suggestions": {
+            "type": "integer",
+            "title": "Open Suggestions",
+            "default": 0
           }
         },
         "type": "object",

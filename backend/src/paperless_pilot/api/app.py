@@ -1,5 +1,6 @@
 """FastAPI-Anwendung: Lebenszyklus, Routen und Auslieferung des Frontends."""
 
+import contextlib
 import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -12,6 +13,7 @@ from paperless_pilot.api.container import Adapters, build_container, real_adapte
 from paperless_pilot.api.errors import register_error_handlers
 from paperless_pilot.api.routes import router
 from paperless_pilot.api.spa import SpaStaticFiles
+from paperless_pilot.application.background import run_background
 from paperless_pilot.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -35,13 +37,26 @@ def create_app(
             build_container(settings, adapters) as container,
         ):
             app.state.container = container
+            await container.registry.refresh()
+            background = (
+                run_background(
+                    container.registry,
+                    container.intake,
+                    container.scheduler,
+                    probe_interval=settings.host_probe_interval_seconds,
+                    intake_interval=settings.intake_interval_seconds,
+                )
+                if settings.background_tasks
+                else contextlib.nullcontext()
+            )
             logger.info(
                 "paperless-pilot %s gestartet%s: %d Ollama-Rechner",
                 __version__,
                 " im Demo-Modus" if settings.demo else "",
                 len(adapters.hosts),
             )
-            yield
+            async with background:
+                yield
 
     app = FastAPI(title="paperless-pilot", version=__version__, lifespan=lifespan)
     register_error_handlers(app)

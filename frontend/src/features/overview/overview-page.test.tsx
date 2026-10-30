@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { renderApp } from "@/test/render";
-import { healthyStatus, server, statusHandler } from "@/test/server";
+import { emptyQueue, healthyStatus, server, statusHandler } from "@/test/server";
 
 describe("Übersicht", () => {
   it("zeigt Kennzahlen aus Paperless", async () => {
@@ -34,6 +34,8 @@ describe("Übersicht", () => {
       statusHandler({
         paperless: { reachable: false, problem: "auth", error: "HTTP 401" },
         hosts: [],
+        queue: emptyQueue,
+        open_suggestions: 0,
       }),
     );
     renderApp();
@@ -52,6 +54,8 @@ describe("Übersicht", () => {
         hosts: [
           { name: "Mac", url: "http://mac:11434", reachable: false, models: [], problem: "auth" },
         ],
+        queue: emptyQueue,
+        open_suggestions: 0,
       }),
     );
     renderApp();
@@ -79,6 +83,77 @@ describe("Übersicht", () => {
     renderApp();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("HTTP 502");
+  });
+
+  it("zeigt den Arbeitsstand und reiht den Posteingang ein", async () => {
+    let calls = 0;
+    server.use(
+      http.post("*/api/jobs/enqueue", async ({ request }) => {
+        calls += 1;
+        expect(await request.json()).toEqual({ scope: "inbox", document_ids: [] });
+        return HttpResponse.json({ enqueued: calls === 1 ? 12 : 0, already_queued: 0 });
+      }),
+    );
+    renderApp();
+
+    expect(await screen.findByText("23")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Jetzt prüfen →" })).toHaveAttribute(
+      "href",
+      "/pruefen",
+    );
+    expect(screen.getByText("Wartend (1 in Arbeit)")).toBeInTheDocument();
+    expect(screen.getByText("72")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Posteingang einreihen" }));
+    expect(await screen.findByText(/12 Dokument\(e\) eingereiht/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Posteingang einreihen" }));
+    expect(await screen.findByText("Keine neuen Dokumente im Posteingang.")).toBeInTheDocument();
+  });
+
+  it("listet fehlgeschlagene Aufträge und versucht sie erneut", async () => {
+    const retried: string[] = [];
+    server.use(
+      http.get("*/api/jobs", ({ request }) => {
+        expect(new URL(request.url).searchParams.get("status")).toBe("failed");
+        return HttpResponse.json([
+          {
+            id: 9,
+            document_id: 707,
+            kind: "extract",
+            status: "failed",
+            attempts: 1,
+            priority: 0,
+            not_before: "2026-10-30T12:00:00Z",
+            lease_owner: null,
+            lease_expires_at: null,
+            last_error: "Dokument hat keinen OCR-Text",
+            created_at: "2026-10-30T12:00:00Z",
+            updated_at: "2026-10-30T12:00:00Z",
+          },
+        ]);
+      }),
+      http.post("*/api/jobs/:id/retry", ({ params }) => {
+        retried.push(String(params.id));
+        return HttpResponse.json({});
+      }),
+    );
+    renderApp();
+
+    expect(await screen.findByText("Dokument hat keinen OCR-Text")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Dokument 707 erneut versuchen" }));
+    await vi.waitFor(() => expect(retried).toEqual(["9"]));
+  });
+
+  it("erklärt, warum der Posteingang nicht eingereiht werden kann", async () => {
+    server.use(
+      http.post("*/api/jobs/enqueue", () =>
+        HttpResponse.json({ detail: "Status-Tag nicht verknüpft" }, { status: 400 }),
+      ),
+    );
+    renderApp();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Posteingang einreihen" }));
+    expect(await screen.findByText("Status-Tag nicht verknüpft")).toBeInTheDocument();
   });
 
   it("lädt den Status auf Knopfdruck neu", async () => {

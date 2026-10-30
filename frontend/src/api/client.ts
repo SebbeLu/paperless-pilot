@@ -11,6 +11,10 @@ export type PersonEntry = Schemas["PersonEntry"];
 export type TaxonomyState = Schemas["TaxonomyState"];
 export type SyncItem = Schemas["SyncItem"];
 export type Lookups = Schemas["Lookups"];
+export type HostState = Schemas["HostState"];
+export type HostRules = Schemas["HostRules"];
+export type Job = Schemas["Job"];
+export type EnqueueResult = Schemas["EnqueueResult"];
 
 export const api = createClient<paths>({
   baseUrl: globalThis.location?.origin ?? "",

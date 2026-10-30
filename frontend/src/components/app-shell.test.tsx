@@ -22,7 +22,6 @@ describe("Navigation", () => {
 
   it.each([
     ["/aufraeumen", "Aufräumen", 2],
-    ["/rechner", "Rechner & Modelle", 1],
     ["/verlauf", "Verlauf", 1],
   ])("öffnet %s direkt", async (path, title, phase) => {
     renderApp(path);

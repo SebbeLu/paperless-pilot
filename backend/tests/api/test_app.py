@@ -28,6 +28,7 @@ def make_settings(**overrides: object) -> Settings:
         "paperless_token": "t",
         "ollama_hosts": [{"name": "Mac", "url": OLLAMA_URL}],
         "data_dir": tempfile.mkdtemp(dir=_TMP.name),
+        "background_tasks": False,
     }
     values.update(overrides)
     return Settings.model_validate(values)
@@ -91,6 +92,8 @@ async def test_system_status_wires_real_adapters(client_for: ClientFactory) -> N
                 "error": None,
             }
         ],
+        "queue": {"queued": 0, "running": 0, "failed": 0, "succeeded": 0},
+        "open_suggestions": 0,
     }
 
 

@@ -5,6 +5,7 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { HostsPage } from "@/features/hosts/hosts-page";
 import { OverviewPage } from "@/features/overview/overview-page";
 import { PlaceholderPage } from "@/features/placeholder-page";
 import { TaxonomyPage } from "@/features/rules/taxonomy-page";
@@ -25,12 +26,6 @@ const placeholders = [
     phase: 2,
   },
   {
-    path: "/rechner",
-    title: "Rechner & Modelle",
-    description: "Wann welcher Rechner arbeiten darf und welches Modell am besten passt.",
-    phase: 1,
-  },
-  {
     path: "/verlauf",
     title: "Verlauf",
     description: "Jede Änderung an Paperless, mit Rückgängig.",
@@ -41,6 +36,7 @@ const placeholders = [
 const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: OverviewPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/regeln", component: TaxonomyPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/rechner", component: HostsPage }),
   ...placeholders.map(({ path, ...props }) =>
     createRoute({
       getParentRoute: () => rootRoute,

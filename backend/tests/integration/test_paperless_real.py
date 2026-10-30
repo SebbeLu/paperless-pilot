@@ -113,12 +113,16 @@ async def _upload_text_document(server: PaperlessServer, text: str) -> int:
             last_seen = (await http.get("/api/tasks/", params={"task_id": task_id})).json()
             # Je nach API-Version eine Liste oder eine Seite mit "results"
             tasks = last_seen["results"] if isinstance(last_seen, dict) else last_seen
-            if tasks and tasks[0]["status"] == "SUCCESS":
-                return int(tasks[0]["related_document"])
-            if tasks and tasks[0]["status"] == "FAILURE":
-                pytest.fail(f"Verarbeitung fehlgeschlagen: {tasks[0].get('result')}")
+            task = tasks[0] if tasks else {}
+            status = str(task.get("status", "")).upper()  # ab 3.2 kleingeschrieben
+            if status == "SUCCESS":
+                if task.get("related_document") is None:
+                    pytest.fail(f"Aufgabe ohne related_document: {task!r}")
+                return int(task["related_document"])
+            if status == "FAILURE":
+                pytest.fail(f"Verarbeitung fehlgeschlagen: {task!r}")
             await asyncio.sleep(1)
-    pytest.fail(f"Dokument wurde nicht rechtzeitig verarbeitet (zuletzt: {last_seen!r:.500})")
+    pytest.fail(f"Dokument wurde nicht rechtzeitig verarbeitet (zuletzt: {last_seen!r})")
 
 
 async def test_roundtrip_against_real_paperless(

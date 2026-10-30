@@ -295,13 +295,18 @@ def _correspondent(
 
 _GERMAN_DATE = re.compile(r"(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4}|\d{2})(?!\d)")
 _ISO_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+_WORD_DATE = re.compile(r"(\d{1,2})\s*\.?\s*([^\W\d_]{3,})\.?\s*(\d{4})(?!\d)")
 
 
 def parse_german_date(value: str | None, today: date) -> date | None:
-    """„05.02.2026“, „5.2.26“ oder ISO „2026-02-05“ → Datum; sonst ``None``."""
+    """„05.02.2026“, „5.2.26“, „5. Februar 2026“ oder ISO „2026-02-05“ → Datum; sonst ``None``."""
     if not value:
         return None
-    if match := _GERMAN_DATE.search(value):
+    if match := _WORD_DATE.search(value):
+        day, year = int(match[1]), int(match[3])
+        if (month := _month_number(match[2])) is None:
+            return None
+    elif match := _GERMAN_DATE.search(value):
         day, month, year = (int(g) for g in match.groups())
         if year < 100:
             year += 2000 if year <= today.year % 100 else 1900
@@ -348,6 +353,21 @@ _MONTHS = (
     "januar", "februar", "märz", "april", "mai", "juni",
     "juli", "august", "september", "oktober", "november", "dezember",
 )  # fmt: skip
+
+
+_MONTH_ALIASES = {"maerz": 3, "marz": 3, "mar": 3, "march": 3, "may": 5, "june": 6, "july": 7}
+_MONTH_ALIASES |= {"oct": 10, "october": 10, "dec": 12, "december": 12}
+
+
+def _month_number(word: str) -> int | None:
+    """Ausgeschriebener oder abgekürzter Monatsname (deutsch oder englisch) → 1–12."""
+    word = word.casefold()
+    if word in _MONTH_ALIASES:
+        return _MONTH_ALIASES[word]
+    for number, name in enumerate(_MONTHS, start=1):
+        if name.startswith(word) or word.startswith(name):
+            return number
+    return None
 
 
 def _month_in(month: int, quote: str) -> bool:

@@ -203,7 +203,7 @@ def interpret(
         parse_german_date(raw["document_date"], today),
         raw["document_date"],
         raw.get("date_evidence"),
-        text,
+        document,
         today,
     )
 
@@ -323,30 +323,37 @@ def parse_german_date(value: str | None, today: date) -> date | None:
 
 
 def _date(
-    value: date | None, raw: str | None, evidence: str | None, text: str, today: date
+    value: date | None, raw: str | None, evidence: str | None, document: Document, today: date
 ) -> tuple[date | None, FieldCheck]:
     if value is None:
         if raw:
             return None, FieldCheck(status=CheckStatus.WARN, message=f"Datum „{raw}“ nicht lesbar")
         return None, FieldCheck(status=CheckStatus.INFO, message="kein Datum erkannt")
-    if problem := _date_problem(value, evidence, text, today):
+    if problem := _date_problem(value, evidence, document, today):
         return value, FieldCheck(status=CheckStatus.WARN, message=problem, evidence=evidence)
     return value, FieldCheck(status=CheckStatus.OK, message="belegt", evidence=evidence)
 
 
-def _date_problem(value: date, evidence: str | None, text: str, today: date) -> str | None:
+def _date_problem(value: date, evidence: str | None, document: Document, today: date) -> str | None:
     if value > today:
         return "liegt in der Zukunft"
     if value < EARLIEST_DATE:
         return "ungewöhnlich alt"
-    if not evidence_in_text(evidence, text):
-        return "nicht im Text belegt"
+    if not evidence_in_text(evidence, document.content):
+        return _missing_evidence(evidence, document)
     quote = (evidence or "").casefold()
     if str(value.year) not in quote and f"{value.year % 100:02d}" not in quote:
         return "Jahr passt nicht zum Zitat"
     if not _month_in(value.month, quote):
         return "Monat passt nicht zum Zitat"
     return None
+
+
+def _missing_evidence(evidence: str | None, document: Document) -> str:
+    """Begründung, warum ein Zitat fehlt – etwa weil das Modell den Dateinamen abgeschrieben hat."""
+    if evidence and evidence.strip().casefold() in document.original_file_name.casefold():
+        return "nur aus dem Dateinamen, nicht im Text belegt"
+    return "nicht im Text belegt"
 
 
 _MONTHS = (

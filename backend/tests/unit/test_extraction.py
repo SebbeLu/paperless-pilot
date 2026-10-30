@@ -179,6 +179,14 @@ def test_month_in_words_or_numbers_is_accepted(evidence: str) -> None:
     assert run(doc=doc, date_evidence=evidence).checks["created"].status == CheckStatus.OK
 
 
+def test_date_only_from_file_name_is_flagged() -> None:
+    doc = document(
+        content="ueqDsiedojna janss! 31eэ", original_file_name="2021-06-23_Zertifikat.pdf"
+    )
+    result = run(doc=doc, document_date="23.06.2021", date_evidence="2021-06-23")
+    assert result.checks["created"].message == "nur aus dem Dateinamen, nicht im Text belegt"
+
+
 def test_ocr_garbage_date_is_not_accepted() -> None:
     doc = document(content="Musterstadt, 130t2c26\nBrief")
     result = run(doc=doc, document_date="13.07.26", date_evidence="Musterstadt, 130t2c26")

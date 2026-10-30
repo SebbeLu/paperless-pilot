@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type HostRules, type SystemStatus, type Taxonomy, unwrap } from "./client";
+import {
+  api,
+  type HostRules,
+  type MetadataValues,
+  type SystemStatus,
+  type Taxonomy,
+  unwrap,
+} from "./client";
 
 export const STATUS_REFRESH_MS = 15_000;
 
@@ -116,4 +123,70 @@ export function useRetryJob() {
       void client.invalidateQueries({ queryKey: queryKeys.status });
     },
   });
+}
+
+export function useSuggestions() {
+  return useQuery({
+    queryKey: queryKeys.suggestions,
+    queryFn: () => unwrap(api.GET("/api/suggestions")),
+  });
+}
+
+export function useSuggestion(id: number | null) {
+  return useQuery({
+    queryKey: [...queryKeys.suggestions, id],
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/suggestions/{suggestion_id}", {
+          params: { path: { suggestion_id: id ?? 0 } },
+        }),
+      ),
+    enabled: id != null,
+  });
+}
+
+function useSuggestionAction<T>(action: (args: T) => Promise<unknown>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: action,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.suggestions });
+      void client.invalidateQueries({ queryKey: queryKeys.status });
+      void client.invalidateQueries({ queryKey: queryKeys.changes });
+      void client.invalidateQueries({ queryKey: queryKeys.lookups });
+    },
+  });
+}
+
+export function useAcceptSuggestion() {
+  return useSuggestionAction(
+    ({ id, values, force = false }: { id: number; values: MetadataValues; force?: boolean }) =>
+      unwrap(
+        api.POST("/api/suggestions/{suggestion_id}/accept", {
+          params: { path: { suggestion_id: id } },
+          body: { values, force },
+        }),
+      ),
+  );
+}
+
+export function useRejectSuggestion() {
+  return useSuggestionAction((id: number) =>
+    unwrap(
+      api.POST("/api/suggestions/{suggestion_id}/reject", {
+        params: { path: { suggestion_id: id } },
+        body: { reason: null },
+      }),
+    ),
+  );
+}
+
+export function useReextractSuggestion() {
+  return useSuggestionAction((id: number) =>
+    unwrap(
+      api.POST("/api/suggestions/{suggestion_id}/reextract", {
+        params: { path: { suggestion_id: id } },
+      }),
+    ),
+  );
 }

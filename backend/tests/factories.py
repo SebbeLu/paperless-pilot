@@ -69,7 +69,7 @@ def answer(**overrides: Any) -> dict[str, Any]:
         "document_type": "Rechnung",
         "correspondent": "Muster Möbel",
         "correspondent_evidence": "Muster Möbel GmbH · Hauptstraße 1",
-        "document_date": "2025-09-12",
+        "document_date": "12.09.2025",
         "date_evidence": "Musterstadt, den 12.09.2025",
         "persons": ["Alex"],
         "area": "Einkauf",

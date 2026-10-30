@@ -82,6 +82,7 @@ async def test_generate_structured_sends_schema_and_parses_reply(
     body = json.loads(route.calls.last.request.content)
     assert body["model"] == "gemma4:26b"
     assert body["stream"] is False
+    assert body["think"] is False
     assert body["format"] == Invoice.model_json_schema()
     assert body["options"] == {"temperature": 0, "num_ctx": 8192}
     assert body["messages"] == [

@@ -24,6 +24,7 @@ from paperless_pilot.application.extraction import ExtractionService
 from paperless_pilot.application.hosts import HostRegistry
 from paperless_pilot.application.intake import IntakeService
 from paperless_pilot.application.processing import JobProcessor, Scheduler
+from paperless_pilot.application.review import ReviewService
 from paperless_pilot.application.system_status import SystemStatusService
 from paperless_pilot.application.taxonomy import TaxonomyService
 from paperless_pilot.config import Settings
@@ -60,6 +61,7 @@ class Container:
     extraction: ExtractionService
     intake: IntakeService
     scheduler: Scheduler
+    review: ReviewService
 
 
 @asynccontextmanager
@@ -114,6 +116,7 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
             events,
         )
         extraction = ExtractionService(paperless, taxonomy_repository, clock, tz)
+        changes = ChangeRepository(engine)
         processor = JobProcessor(
             paperless, jobs, suggestions, taxonomy_repository, extraction, registry, clock, events
         )
@@ -124,7 +127,7 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
             events=events,
             jobs=jobs,
             suggestions=suggestions,
-            changes=ChangeRepository(engine),
+            changes=changes,
             host_settings=host_settings,
             taxonomy_repository=taxonomy_repository,
             system_status=SystemStatusService(paperless, adapters.hosts, jobs, suggestions),
@@ -139,6 +142,9 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
                 taxonomy_repository,
                 clock,
                 lease_for=timedelta(seconds=settings.llm_timeout_seconds + 120),
+            ),
+            review=ReviewService(
+                paperless, suggestions, changes, jobs, taxonomy_repository, clock, events
             ),
         )
     finally:

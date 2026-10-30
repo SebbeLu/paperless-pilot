@@ -419,6 +419,288 @@
         }
       }
     },
+    "/api/suggestions": {
+      "get": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "List Suggestions",
+        "description": "Prüfliste: offene Vorschläge, unsichere zuerst.",
+        "operationId": "list_suggestions_api_suggestions_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SuggestionStatus",
+              "default": "open"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Suggestion"
+                  },
+                  "title": "Response List Suggestions Api Suggestions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suggestions/{suggestion_id}": {
+      "get": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Get Suggestion",
+        "description": "Vorschlag mit dem aktuellen Stand des Dokuments in Paperless.",
+        "operationId": "get_suggestion_api_suggestions__suggestion_id__get",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Suggestion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suggestions/{suggestion_id}/accept": {
+      "post": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Accept",
+        "description": "Übernehmen – mit den Werten aus der Oberfläche (Vorschlag oder korrigiert).",
+        "operationId": "accept_api_suggestions__suggestion_id__accept_post",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Suggestion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suggestions/{suggestion_id}/reject": {
+      "post": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Reject",
+        "operationId": "reject_api_suggestions__suggestion_id__reject_post",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Suggestion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suggestions/{suggestion_id}/reextract": {
+      "post": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Reextract",
+        "description": "Neu auslesen lassen (mit Vorrang).",
+        "operationId": "reextract_api_suggestions__suggestion_id__reextract_post",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Suggestion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{document_id}/{kind}": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Document File",
+        "description": "Vorschau (PDF) bzw. Miniaturbild aus Paperless – der Browser hat keinen Paperless-Token.",
+        "operationId": "document_file_api_documents__document_id___kind__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/FileKind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/events": {
       "get": {
         "tags": [
@@ -437,6 +719,111 @@
   },
   "components": {
     "schemas": {
+      "AcceptRequest": {
+        "properties": {
+          "values": {
+            "$ref": "#/components/schemas/MetadataValues"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "values"
+        ],
+        "title": "AcceptRequest"
+      },
+      "Actor": {
+        "type": "string",
+        "enum": [
+          "user",
+          "automatic"
+        ],
+        "title": "Actor"
+      },
+      "Change": {
+        "properties": {
+          "document_id": {
+            "type": "integer",
+            "title": "Document Id"
+          },
+          "suggestion_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ChangeKind"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "before": {
+            "$ref": "#/components/schemas/DocumentState"
+          },
+          "after": {
+            "$ref": "#/components/schemas/DocumentState"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "reverted_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverted By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "suggestion_id",
+          "kind",
+          "actor",
+          "before",
+          "after",
+          "id",
+          "created_at"
+        ],
+        "title": "Change"
+      },
+      "ChangeKind": {
+        "type": "string",
+        "enum": [
+          "apply",
+          "revert"
+        ],
+        "title": "ChangeKind"
+      },
+      "CheckStatus": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "warn",
+          "info"
+        ],
+        "title": "CheckStatus"
+      },
       "CorrespondentOption": {
         "properties": {
           "id": {
@@ -477,6 +864,58 @@
           "reason"
         ],
         "title": "Decision"
+      },
+      "DocumentState": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "document_type_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Type Id"
+          },
+          "correspondent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correspondent Id"
+          },
+          "created": {
+            "type": "string",
+            "format": "date",
+            "title": "Created"
+          },
+          "tag_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Tag Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "document_type_id",
+          "correspondent_id",
+          "created",
+          "tag_ids"
+        ],
+        "title": "DocumentState",
+        "description": "Die Felder, die paperless-pilot schreibt – Grundlage für Rückgängig."
       },
       "EnqueueRequest": {
         "properties": {
@@ -539,6 +978,42 @@
           "last_changed"
         ],
         "title": "EntityState"
+      },
+      "FieldCheck": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/CheckStatus"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "FieldCheck"
+      },
+      "FileKind": {
+        "type": "string",
+        "enum": [
+          "preview",
+          "thumb"
+        ],
+        "title": "FileKind"
       },
       "Group": {
         "type": "string",
@@ -990,6 +1465,88 @@
         "title": "Lookups",
         "description": "Auswahllisten für die Oberfläche."
       },
+      "MetadataValues": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "document_type_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Type Id"
+          },
+          "correspondent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correspondent Id"
+          },
+          "new_correspondent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Correspondent"
+          },
+          "created": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "person_tag_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Person Tag Ids",
+            "default": []
+          },
+          "area_tag_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Tag Id"
+          }
+        },
+        "type": "object",
+        "title": "MetadataValues",
+        "description": "Die Felder, die paperless-pilot setzt – aktuell oder vorgeschlagen."
+      },
       "Option": {
         "properties": {
           "id": {
@@ -1147,6 +1704,23 @@
         "type": "object",
         "title": "QueueStats"
       },
+      "RejectRequest": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "RejectRequest"
+      },
       "StatusTags": {
         "properties": {
           "todo": {
@@ -1180,6 +1754,152 @@
         },
         "type": "object",
         "title": "StatusTags"
+      },
+      "Suggestion": {
+        "properties": {
+          "document_id": {
+            "type": "integer",
+            "title": "Document Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "title": "Duration Ms"
+          },
+          "document_modified": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Modified"
+          },
+          "current": {
+            "$ref": "#/components/schemas/MetadataValues"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/MetadataValues"
+          },
+          "checks": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FieldCheck"
+            },
+            "type": "object",
+            "title": "Checks"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SuggestionStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "job_id",
+          "model",
+          "host",
+          "duration_ms",
+          "document_modified",
+          "current",
+          "proposed",
+          "checks",
+          "id",
+          "status",
+          "created_at"
+        ],
+        "title": "Suggestion"
+      },
+      "SuggestionDetail": {
+        "properties": {
+          "suggestion": {
+            "$ref": "#/components/schemas/Suggestion"
+          },
+          "live": {
+            "$ref": "#/components/schemas/MetadataValues"
+          },
+          "original_file_name": {
+            "type": "string",
+            "title": "Original File Name"
+          },
+          "changed_since": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changed Since"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suggestion",
+          "live",
+          "original_file_name",
+          "changed_since"
+        ],
+        "title": "SuggestionDetail"
+      },
+      "SuggestionStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "accepted",
+          "rejected",
+          "superseded"
+        ],
+        "title": "SuggestionStatus"
       },
       "SyncItem": {
         "properties": {

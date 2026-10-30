@@ -5,6 +5,7 @@ JSON-Schema schon bei der Erzeugung; Absender und Datum müssen mit einem wörtl
 werden, das hier gegen den Dokumenttext geprüft wird.
 """
 
+import re
 from collections.abc import Sequence
 from datetime import date
 from typing import Any, Literal
@@ -12,7 +13,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, create_model
 
 from paperless_pilot.domain.errors import ValidationFailedError
-from paperless_pilot.domain.matching import evidence_in_text, match_correspondent, mentioned
+from paperless_pilot.domain.matching import (
+    evidence_in_text,
+    match_correspondent,
+    mentioned,
+    normalize_name,
+)
 from paperless_pilot.domain.models import Correspondent, Document
 from paperless_pilot.domain.suggestions import CheckStatus, FieldCheck, MetadataValues
 from paperless_pilot.domain.taxonomy import Taxonomy, TaxonomyEntry
@@ -52,15 +58,19 @@ def build_output_model(taxonomy: Taxonomy) -> type[BaseModel]:
         ),
         "correspondent": (
             str,
-            Field(description="Absender, so wie er im Briefkopf steht, ohne Adresse"),
+            Field(
+                description="Absender (Firma, Behörde, Praxis), der das Dokument ausgestellt hat "
+                "– nicht der Empfänger"
+            ),
         ),
         "correspondent_evidence": (
             str,
             Field(description="Wörtliches Zitat aus dem Text, in dem der Absender steht"),
         ),
+        # Als Text im deutschen Format: Modelle verdrehen ISO-Daten häufig, „TT.MM.JJJJ“ nicht.
         "document_date": (
-            date | None,
-            Field(description="Ausstellungsdatum (nicht Leistungs- oder Fälligkeitsdatum)"),
+            str | None,
+            Field(description="Ausstellungsdatum im Format TT.MM.JJJJ, z. B. 05.02.2026"),
         ),
         "date_evidence": (
             str | None,
@@ -68,7 +78,10 @@ def build_output_model(taxonomy: Taxonomy) -> type[BaseModel]:
         ),
         "title": (
             str,
-            Field(description="Kurzer Inhalt, 2–6 Wörter, ohne Datum und ohne Absender"),
+            Field(
+                description="Neu formulierter kurzer Inhalt, 2–6 Wörter, ohne Datum, ohne "
+                "Absender, nicht der Dateiname"
+            ),
         ),
     }
     if taxonomy.persons:
@@ -104,13 +117,18 @@ def build_prompt(
         for p in taxonomy.persons
     )
     sections = [
-        "Ordne das folgende Dokument ein.",
+        "Ordne das folgende Dokument ein.\n"
+        "- Absender ist, wer das Dokument ausgestellt hat (Firma, Behörde, Praxis, Arbeitgeber). "
+        "Personen aus dem Haushalt sind Empfänger, nie Absender.\n"
+        "- Datum ist das Ausstellungsdatum, nicht ein Leistungs-, Fälligkeits- oder Geburtsdatum.\n"
+        "- Der Titel beschreibt den Inhalt in eigenen Worten; der Dateiname ist meist "
+        "nichtssagend.",
         f"Dokumenttypen:\n{listing(taxonomy.document_types)}",
     ]
     if taxonomy.persons:
         sections.append(
-            "Personen im Haushalt (nur wählen, wenn das Dokument sie betrifft, "
-            f"z. B. als Empfänger oder Patient):\n{persons}"
+            "Personen im Haushalt (wählen, wen das Dokument betrifft, z. B. Empfänger, "
+            f"Patient, Versicherter):\n{persons}"
         )
     if taxonomy.areas:
         sections.append(f"Lebensbereiche:\n{listing(taxonomy.areas)}")
@@ -120,8 +138,7 @@ def build_prompt(
             "sonst den Namen aus dem Briefkopf):\n" + "\n".join(f"- {c}" for c in correspondents)
         )
     sections.append(
-        f"Dateiname: {document.original_file_name}\n"
-        f"Bisheriger Titel: {document.title}\n\n"
+        f"Dateiname: {document.original_file_name}\n\n"
         f"Dokumenttext:\n<<<\n{trim_text(document.content, text_limit)}\n>>>"
     )
     return "\n\n".join(sections)
@@ -130,7 +147,19 @@ def build_prompt(
 def candidate_correspondents(
     correspondents: list[Correspondent], taxonomy: Taxonomy
 ) -> list[Correspondent]:
-    return [c for c in correspondents if not taxonomy.is_excluded_correspondent(c.name)]
+    """Vorschlagbare Absender: ohne Sammel-Korrespondenten und ohne Personen des Haushalts."""
+    household = _household_names(taxonomy)
+    return [
+        c
+        for c in correspondents
+        if not taxonomy.is_excluded_correspondent(c.name)
+        and normalize_name(c.name) not in household
+    ]
+
+
+def _household_names(taxonomy: Taxonomy) -> set[str]:
+    names = {normalize_name(n) for p in taxonomy.persons for n in (p.name, *p.aliases)}
+    return {n for n in names if n}
 
 
 def current_values(document: Document, taxonomy: Taxonomy) -> MetadataValues:
@@ -170,7 +199,13 @@ def interpret(
         raw["correspondent"], raw["correspondent_evidence"], text, taxonomy, correspondents
     )
 
-    created, checks["created"] = _date(raw["document_date"], raw.get("date_evidence"), text, today)
+    created, checks["created"] = _date(
+        parse_german_date(raw["document_date"], today),
+        raw["document_date"],
+        raw.get("date_evidence"),
+        text,
+        today,
+    )
 
     persons = [p for p in taxonomy.persons if p.name in raw.get("persons", [])]
     checks["persons"] = _persons_check(persons, text)
@@ -178,7 +213,7 @@ def interpret(
     area = _by_name(taxonomy.areas, raw["area"]) if "area" in raw else None
     checks["area"] = _link_check(area, "vom Modell gewählt")
 
-    title, checks["title"] = _title(raw["title"])
+    title, checks["title"] = _title(raw["title"], document)
 
     return Interpretation(
         proposed=MetadataValues(
@@ -219,6 +254,20 @@ def _correspondent(
     name = " ".join(name.split())
     if not name:
         return None, None, FieldCheck(status=CheckStatus.WARN, message="kein Absender erkannt")
+    if normalize_name(name) in _household_names(taxonomy) or any(
+        normalize_name(name) in n or n in normalize_name(name)
+        for n in _household_names(taxonomy)
+        if len(n) > 3
+    ):
+        return (
+            None,
+            None,
+            FieldCheck(
+                status=CheckStatus.WARN,
+                message=f"„{name}“ gehört zum Haushalt – vermutlich Empfänger, nicht Absender",
+                evidence=evidence or None,
+            ),
+        )
     belegt = evidence_in_text(evidence, text) or evidence_in_text(name, text)
     match = match_correspondent(name, candidate_correspondents(correspondents, taxonomy))
     if match is not None:
@@ -244,26 +293,54 @@ def _correspondent(
     return None, name, check
 
 
+_GERMAN_DATE = re.compile(r"(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4}|\d{2})(?!\d)")
+_ISO_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+
+
+def parse_german_date(value: str | None, today: date) -> date | None:
+    """„05.02.2026“, „5.2.26“ oder ISO „2026-02-05“ → Datum; sonst ``None``."""
+    if not value:
+        return None
+    if match := _GERMAN_DATE.search(value):
+        day, month, year = (int(g) for g in match.groups())
+        if year < 100:
+            year += 2000 if year <= today.year % 100 else 1900
+    elif match := _ISO_DATE.fullmatch(value.strip()):
+        year, month, day = (int(g) for g in match.groups())
+        if year < EARLIEST_DATE.year // 2:  # verdrehtes ISO-Datum wie „0502-10-20“
+            return None
+    else:
+        return None
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
 def _date(
-    value: date | None, evidence: str | None, text: str, today: date
+    value: date | None, raw: str | None, evidence: str | None, text: str, today: date
 ) -> tuple[date | None, FieldCheck]:
     if value is None:
+        if raw:
+            return None, FieldCheck(status=CheckStatus.WARN, message=f"Datum „{raw}“ nicht lesbar")
         return None, FieldCheck(status=CheckStatus.INFO, message="kein Datum erkannt")
+    if problem := _date_problem(value, evidence, text, today):
+        return value, FieldCheck(status=CheckStatus.WARN, message=problem, evidence=evidence)
+    return value, FieldCheck(status=CheckStatus.OK, message="belegt", evidence=evidence)
+
+
+def _date_problem(value: date, evidence: str | None, text: str, today: date) -> str | None:
     if value > today:
-        return value, FieldCheck(status=CheckStatus.WARN, message="liegt in der Zukunft")
+        return "liegt in der Zukunft"
     if value < EARLIEST_DATE:
-        return value, FieldCheck(status=CheckStatus.WARN, message="ungewöhnlich alt")
+        return "ungewöhnlich alt"
     if not evidence_in_text(evidence, text):
-        return value, FieldCheck(
-            status=CheckStatus.WARN, message="nicht im Text belegt", evidence=evidence
-        )
+        return "nicht im Text belegt"
     if str(value.year) not in (evidence or "") and f"{value.year % 100:02d}" not in (
         evidence or ""
     ):
-        return value, FieldCheck(
-            status=CheckStatus.WARN, message="Jahr passt nicht zum Zitat", evidence=evidence
-        )
-    return value, FieldCheck(status=CheckStatus.OK, message="belegt", evidence=evidence)
+        return "Jahr passt nicht zum Zitat"
+    return None
 
 
 def _persons_check(persons: list[Any], text: str) -> FieldCheck:
@@ -283,10 +360,15 @@ def _persons_check(persons: list[Any], text: str) -> FieldCheck:
     return FieldCheck(status=CheckStatus.OK, message="im Text genannt")
 
 
-def _title(value: str) -> tuple[str, FieldCheck]:
+def _title(value: str, document: Document) -> tuple[str, FieldCheck]:
     title = " ".join(value.split()).strip(" .-–")
     if not title:
         return "", FieldCheck(status=CheckStatus.WARN, message="kein Titel")
+    file_stem = document.original_file_name.rsplit(".", 1)[0]
+    if normalize_name(title) in {normalize_name(file_stem), normalize_name(document.title)}:
+        return title, FieldCheck(
+            status=CheckStatus.WARN, message="entspricht dem Dateinamen bzw. bisherigen Titel"
+        )
     if len(title) > TITLE_LIMIT:
         cut = title[:TITLE_LIMIT].rsplit(" ", 1)[0]
         return cut, FieldCheck(status=CheckStatus.INFO, message="gekürzt")

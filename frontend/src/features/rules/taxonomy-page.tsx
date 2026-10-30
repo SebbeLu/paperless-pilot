@@ -193,7 +193,7 @@ function EntrySection({
               const item = sync.find((s) => s.group === group && s.name === entry.name);
               const label = item ? SYNC_LABEL[item.status] : null;
               return (
-                // biome-ignore lint/suspicious/noArrayIndexKey: Einträge haben (noch) keine stabile ID
+                // Einträge haben keine stabile ID; Index-Schlüssel ist hier bewusst (biome.json)
                 <li
                   key={index}
                   className="grid gap-2 py-3 md:grid-cols-[12rem_1fr_auto] md:items-center"
@@ -263,6 +263,7 @@ function AdvancedSettings({
   sync: SyncItem[];
 }) {
   const status = draft.status;
+  const id = useId();
   const statusLabels = {
     todo: "Wartet auf Auslesen",
     review: "Vorschlag liegt vor",
@@ -285,14 +286,15 @@ function AdvancedSettings({
           {(Object.keys(statusLabels) as (keyof typeof statusLabels)[]).map((key) => {
             const item = sync.find((s) => s.group === "status" && s.name === status[key].name);
             return (
-              <label key={key} className="space-y-1 text-sm">
+              <div key={key} className="space-y-1 text-sm">
                 <span className="flex items-center justify-between gap-2 text-zinc-600 dark:text-zinc-300">
-                  {statusLabels[key]}
+                  <label htmlFor={`${id}-${key}`}>{statusLabels[key]}</label>
                   {item && item.status !== "linked" && (
                     <Badge tone="danger">{SYNC_LABEL[item.status].text}</Badge>
                   )}
                 </span>
                 <Input
+                  id={`${id}-${key}`}
                   value={status[key].name}
                   onChange={(e) =>
                     onChange({
@@ -301,20 +303,21 @@ function AdvancedSettings({
                     })
                   }
                 />
-              </label>
+              </div>
             );
           })}
         </div>
-        <label className="block space-y-1 text-sm">
-          <span className="text-zinc-600 dark:text-zinc-300">
+        <div className="space-y-1 text-sm">
+          <label htmlFor={`${id}-exclude`} className="text-zinc-600 dark:text-zinc-300">
             Korrespondenten ausschließen (regulärer Ausdruck)
-          </span>
+          </label>
           <Input
+            id={`${id}-exclude`}
             className="font-mono"
             value={draft.correspondent_exclude_pattern ?? ""}
             onChange={(e) => onChange({ ...draft, correspondent_exclude_pattern: e.target.value })}
           />
-        </label>
+        </div>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

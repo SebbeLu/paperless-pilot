@@ -242,6 +242,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Suggestions
+         * @description Prüfliste: offene Vorschläge, unsichere zuerst.
+         */
+        get: operations["list_suggestions_api_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suggestions/{suggestion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Suggestion
+         * @description Vorschlag mit dem aktuellen Stand des Dokuments in Paperless.
+         */
+        get: operations["get_suggestion_api_suggestions__suggestion_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suggestions/{suggestion_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept
+         * @description Übernehmen – mit den Werten aus der Oberfläche (Vorschlag oder korrigiert).
+         */
+        post: operations["accept_api_suggestions__suggestion_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suggestions/{suggestion_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject */
+        post: operations["reject_api_suggestions__suggestion_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suggestions/{suggestion_id}/reextract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reextract
+         * @description Neu auslesen lassen (mit Vorrang).
+         */
+        post: operations["reextract_api_suggestions__suggestion_id__reextract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{document_id}/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Document File
+         * @description Vorschau (PDF) bzw. Miniaturbild aus Paperless – der Browser hat keinen Paperless-Token.
+         */
+        get: operations["document_file_api_documents__document_id___kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -266,6 +383,50 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptRequest */
+        AcceptRequest: {
+            values: components["schemas"]["MetadataValues"];
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
+        /**
+         * Actor
+         * @enum {string}
+         */
+        Actor: "user" | "automatic";
+        /** Change */
+        Change: {
+            /** Document Id */
+            document_id: number;
+            /** Suggestion Id */
+            suggestion_id: number | null;
+            kind: components["schemas"]["ChangeKind"];
+            actor: components["schemas"]["Actor"];
+            before: components["schemas"]["DocumentState"];
+            after: components["schemas"]["DocumentState"];
+            /** Id */
+            id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Reverted By */
+            reverted_by?: number | null;
+        };
+        /**
+         * ChangeKind
+         * @enum {string}
+         */
+        ChangeKind: "apply" | "revert";
+        /**
+         * CheckStatus
+         * @enum {string}
+         */
+        CheckStatus: "ok" | "warn" | "info";
         /** CorrespondentOption */
         CorrespondentOption: {
             /** Id */
@@ -281,6 +442,25 @@ export interface components {
             allowed: boolean;
             /** Reason */
             reason: string;
+        };
+        /**
+         * DocumentState
+         * @description Die Felder, die paperless-pilot schreibt – Grundlage für Rückgängig.
+         */
+        DocumentState: {
+            /** Title */
+            title: string;
+            /** Document Type Id */
+            document_type_id: number | null;
+            /** Correspondent Id */
+            correspondent_id: number | null;
+            /**
+             * Created
+             * Format: date
+             */
+            created: string;
+            /** Tag Ids */
+            tag_ids: number[];
         };
         /** EnqueueRequest */
         EnqueueRequest: {
@@ -312,6 +492,19 @@ export interface components {
              */
             last_changed: string;
         };
+        /** FieldCheck */
+        FieldCheck: {
+            status: components["schemas"]["CheckStatus"];
+            /** Message */
+            message: string;
+            /** Evidence */
+            evidence?: string | null;
+        };
+        /**
+         * FileKind
+         * @enum {string}
+         */
+        FileKind: "preview" | "thumb";
         /** @enum {string} */
         Group: "document_types" | "persons" | "areas" | "status";
         /** HTTPValidationError */
@@ -505,6 +698,29 @@ export interface components {
             /** Tags */
             tags: components["schemas"]["Option"][];
         };
+        /**
+         * MetadataValues
+         * @description Die Felder, die paperless-pilot setzt – aktuell oder vorgeschlagen.
+         */
+        MetadataValues: {
+            /** Title */
+            title?: string | null;
+            /** Document Type Id */
+            document_type_id?: number | null;
+            /** Correspondent Id */
+            correspondent_id?: number | null;
+            /** New Correspondent */
+            new_correspondent?: string | null;
+            /** Created */
+            created?: string | null;
+            /**
+             * Person Tag Ids
+             * @default []
+             */
+            person_tag_ids: number[];
+            /** Area Tag Id */
+            area_tag_id?: number | null;
+        };
         /** Option */
         Option: {
             /** Id */
@@ -568,6 +784,11 @@ export interface components {
              */
             succeeded: number;
         };
+        /** RejectRequest */
+        RejectRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** StatusTags */
         StatusTags: {
             /**
@@ -599,6 +820,53 @@ export interface components {
              */
             error: components["schemas"]["TaxonomyEntry"];
         };
+        /** Suggestion */
+        Suggestion: {
+            /** Document Id */
+            document_id: number;
+            /** Job Id */
+            job_id: number | null;
+            /** Model */
+            model: string;
+            /** Host */
+            host: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Document Modified */
+            document_modified: string | null;
+            current: components["schemas"]["MetadataValues"];
+            proposed: components["schemas"]["MetadataValues"];
+            /** Checks */
+            checks: {
+                [key: string]: components["schemas"]["FieldCheck"];
+            };
+            /** Id */
+            id: number;
+            status: components["schemas"]["SuggestionStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** SuggestionDetail */
+        SuggestionDetail: {
+            suggestion: components["schemas"]["Suggestion"];
+            live: components["schemas"]["MetadataValues"];
+            /** Original File Name */
+            original_file_name: string;
+            /** Changed Since */
+            changed_since: string[];
+        };
+        /**
+         * SuggestionStatus
+         * @enum {string}
+         */
+        SuggestionStatus: "open" | "accepted" | "rejected" | "superseded";
         /** SyncItem */
         SyncItem: {
             group: components["schemas"]["Group"];
@@ -1037,6 +1305,199 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Job"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_suggestions_api_suggestions_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["SuggestionStatus"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_suggestion_api_suggestions__suggestion_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_api_suggestions__suggestion_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_api_suggestions__suggestion_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reextract_api_suggestions__suggestion_id__reextract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    document_file_api_documents__document_id___kind__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: number;
+                kind: components["schemas"]["FileKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

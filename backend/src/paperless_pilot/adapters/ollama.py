@@ -93,6 +93,9 @@ class OllamaHost:
                 "messages": messages,
                 "format": output_type.model_json_schema(),
                 "stream": False,
+                # Denkmodus aus: bei strukturierter Ausgabe kein Qualitätsgewinn, aber um ein
+                # Vielfaches langsamer. Modelle ohne Denkmodus ignorieren den Schalter.
+                "think": False,
                 "options": {"temperature": 0, "num_ctx": self._context_length},
             },
             request_timeout=self._generate_timeout,

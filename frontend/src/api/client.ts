@@ -15,6 +15,12 @@ export type HostState = Schemas["HostState"];
 export type HostRules = Schemas["HostRules"];
 export type Job = Schemas["Job"];
 export type EnqueueResult = Schemas["EnqueueResult"];
+export type Suggestion = Schemas["Suggestion"];
+export type SuggestionDetail = Schemas["SuggestionDetail"];
+export type MetadataValues = Schemas["MetadataValues"];
+export type FieldCheck = Schemas["FieldCheck"];
+export type Change = Schemas["Change"];
+export type DocumentState = Schemas["DocumentState"];
 
 export const api = createClient<paths>({
   baseUrl: globalThis.location?.origin ?? "",

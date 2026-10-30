@@ -8,17 +8,12 @@ import { AppShell } from "@/components/app-shell";
 import { HostsPage } from "@/features/hosts/hosts-page";
 import { OverviewPage } from "@/features/overview/overview-page";
 import { PlaceholderPage } from "@/features/placeholder-page";
+import { ReviewPage } from "@/features/review/review-page";
 import { TaxonomyPage } from "@/features/rules/taxonomy-page";
 
 const rootRoute = createRootRoute({ component: AppShell });
 
 const placeholders = [
-  {
-    path: "/pruefen",
-    title: "Prüfen",
-    description: "Vorschläge der KI ansehen, korrigieren und übernehmen.",
-    phase: 1,
-  },
   {
     path: "/aufraeumen",
     title: "Aufräumen",
@@ -37,6 +32,7 @@ const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: OverviewPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/regeln", component: TaxonomyPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/rechner", component: HostsPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/pruefen", component: ReviewPage }),
   ...placeholders.map(({ path, ...props }) =>
     createRoute({
       getParentRoute: () => rootRoute,

@@ -18,6 +18,7 @@ from paperless_pilot.application.extraction import ExtractionService
 from paperless_pilot.application.hosts import HostRegistry
 from paperless_pilot.application.intake import IntakeService
 from paperless_pilot.application.processing import JobProcessor, Scheduler
+from paperless_pilot.application.review import ReviewService
 from tests.clock import FakeClock
 from tests.factories import CORRESPONDENTS, document, taxonomy
 from tests.fakes import FakeAvailability, FakeDocumentRepository, FakeLlmHost
@@ -41,6 +42,7 @@ class Pipeline:
     intake: IntakeService
     processor: JobProcessor
     scheduler: Scheduler
+    review: ReviewService
 
 
 async def build_pipeline(
@@ -61,6 +63,7 @@ async def build_pipeline(
     )
     extraction = ExtractionService(paperless, tax, clock, BERLIN)
     processor = JobProcessor(paperless, jobs, suggestions, tax, extraction, registry, clock, events)
+    changes = ChangeRepository(engine)
     return Pipeline(
         paperless=paperless,
         hosts=hosts,
@@ -69,7 +72,7 @@ async def build_pipeline(
         events=events,
         jobs=jobs,
         suggestions=suggestions,
-        changes=ChangeRepository(engine),
+        changes=changes,
         taxonomy=tax,
         host_settings=host_settings,
         registry=registry,
@@ -84,4 +87,5 @@ async def build_pipeline(
             lease_for=timedelta(minutes=12),
             idle_seconds=0.01,
         ),
+        review=ReviewService(paperless, suggestions, changes, jobs, tax, clock, events),
     )

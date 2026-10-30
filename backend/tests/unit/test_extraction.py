@@ -9,6 +9,7 @@ from paperless_pilot.domain.extraction import (
     build_prompt,
     current_values,
     interpret,
+    parse_german_date,
     trim_text,
 )
 from paperless_pilot.domain.suggestions import CheckStatus
@@ -67,6 +68,8 @@ def test_prompt_contains_taxonomy_hints_and_document() -> None:
     assert "- Muster Möbel GmbH" in prompt
     assert "Rechnung Nr. 4711" in prompt
     assert "Dateiname: SwiftScan" in prompt
+    assert "Bisheriger Titel" not in prompt
+    assert "nie Absender" in prompt
 
 
 def test_happy_path_maps_names_to_paperless_ids() -> None:
@@ -117,14 +120,44 @@ def test_known_correspondent_without_evidence_is_flagged() -> None:
     ("overrides", "message"),
     [
         ({"document_date": None}, "kein Datum erkannt"),
-        ({"document_date": "2027-01-01"}, "liegt in der Zukunft"),
-        ({"document_date": "1901-01-01"}, "ungewöhnlich alt"),
+        ({"document_date": "01.01.2027"}, "liegt in der Zukunft"),
+        ({"document_date": "01.01.1901"}, "ungewöhnlich alt"),
         ({"date_evidence": "am 01.01.2025 erfunden"}, "nicht im Text belegt"),
-        ({"document_date": "2024-09-12"}, "Jahr passt nicht zum Zitat"),
+        ({"document_date": "12.09.2024"}, "Jahr passt nicht zum Zitat"),
+        ({"document_date": "0502-10-20"}, "Datum „0502-10-20“ nicht lesbar"),
     ],
 )
 def test_date_checks(overrides: dict[str, object], message: str) -> None:
     assert run(**overrides).checks["created"].message == message
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("05.02.2026", date(2026, 2, 5)),
+        ("5.2.26", date(2026, 2, 5)),
+        ("am 31. 12. 99 ausgestellt", date(1999, 12, 31)),
+        ("2026-02-05", date(2026, 2, 5)),
+        ("31.02.2026", None),
+        ("0502-10-20", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_parse_german_date(raw: str | None, expected: date | None) -> None:
+    assert parse_german_date(raw, TODAY) == expected
+
+
+def test_household_member_is_never_the_sender() -> None:
+    result = run(correspondent="Alexandra Muster", correspondent_evidence="Frau Alexandra Muster")
+    assert result.proposed.correspondent_id is None
+    assert result.proposed.new_correspondent is None
+    assert "gehört zum Haushalt" in result.checks["correspondent"].message
+
+
+def test_title_copied_from_filename_is_flagged() -> None:
+    result = run(title="SwiftScan 2026-10-07 14.25.56")
+    assert result.checks["title"].status == CheckStatus.WARN
 
 
 def test_two_digit_year_in_evidence_is_accepted() -> None:

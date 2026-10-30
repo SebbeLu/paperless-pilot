@@ -40,4 +40,13 @@ export const healthyStatus: SystemStatus = {
 export const statusHandler = (status: SystemStatus) =>
   http.get("*/api/system/status", () => HttpResponse.json(status));
 
-export const server = setupServer(statusHandler(healthyStatus));
+/** Standardantworten, damit jede Seite ohne weitere Einrichtung rendert. */
+export const defaultHandlers = [
+  statusHandler(healthyStatus),
+  http.get("*/api/suggestions", () => HttpResponse.json([])),
+  http.get("*/api/hosts", () => HttpResponse.json([])),
+  http.get("*/api/jobs", () => HttpResponse.json([])),
+  http.get("*/api/changes", () => HttpResponse.json([])),
+];
+
+export const server = setupServer(...defaultHandlers);

@@ -10,7 +10,7 @@ describe("Navigation", () => {
     await userEvent.click(screen.getByRole("link", { name: "Prüfen" }));
 
     expect(await screen.findByRole("heading", { level: 1, name: "Prüfen" })).toBeInTheDocument();
-    expect(screen.getByText("Kommt in Phase 1")).toBeInTheDocument();
+    expect(await screen.findByText("Alles geprüft")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/pruefen");
     expect(screen.getByRole("link", { name: "Prüfen" })).toHaveAttribute("data-status", "active");
     expect(screen.getByRole("link", { name: "Übersicht" })).not.toHaveAttribute(

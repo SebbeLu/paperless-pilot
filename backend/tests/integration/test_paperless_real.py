@@ -35,7 +35,9 @@ def _wait_until_ready(url: str) -> None:
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         try:
-            if httpx.get(f"{url}/api/", timeout=5).status_code in (200, 401, 403):
+            # Jede HTTP-Antwort von Django heißt: Migrationen und Admin-Anlage sind durch.
+            # Ohne Anmeldung leitet /api/ auf den Login um (302), daher kein fester Statuscode.
+            if httpx.get(f"{url}/api/", timeout=5).status_code < 500:
                 return
         except httpx.TransportError:
             pass

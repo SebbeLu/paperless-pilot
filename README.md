@@ -93,5 +93,5 @@ Damit ein Ollama-Rechner erreichbar ist, muss Ollama im Netz lauschen (`OLLAMA_H
 
 ## Technische Entscheidungen
 
-- **TypeScript 6 statt 7:** TypeScript 7 hat keine JavaScript-API mehr; `openapi-typescript` braucht sie noch. Umstieg, sobald der Generator TS 7 unterstützt.
+- **TypeScript 5.9 statt 7:** `openapi-typescript` braucht die JavaScript-API von TypeScript, die es ab Version 7 nicht mehr gibt, und verlangt per Peer-Dependency TypeScript 5. Umstieg, sobald der Generator neuere Versionen unterstützt.
 - **Paperless-API-Version 10 fest eingestellt:** passt zu Paperless-ngx 3.2. Ein Wechsel wird bewusst über den Integrationstest abgesichert.

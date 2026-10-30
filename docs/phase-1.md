@@ -1,6 +1,6 @@
 # Phase 1 – Kernnutzen: Plan
 
-Stand: 2026-10-30 · Status: abgestimmt · Grundlage: [konzept.md](konzept.md)
+Stand: 2026-10-30 · Status: umgesetzt (siehe Abschnitt 14) · Grundlage: [konzept.md](konzept.md)
 
 ## 1. Ziel
 
@@ -140,7 +140,7 @@ SQLite-Datei im Datenordner (`/data/pilot.db`, WAL-Modus), SQLAlchemy 2 (async) 
 | `suggestions` | Dokument, Auftrag, Modell, Rechner, Dauer, Stand des Dokuments beim Auslesen (`modified`), Vorschlag je Feld mit Belegen und Prüfergebnissen, Status (offen, übernommen, teilweise, verworfen, überholt) |
 | `changes` | Dokument, Vorschlag, Zeitpunkt, Auslöser (Mensch/Automatik), Werte vorher und nachher, rückgängig gemacht durch |
 | `host_settings` | Pause, Zeitfenster, HA-Leerlauf-Entität und Mindestdauer, HA-Sperr-Entität |
-| `taxonomy_*` | Dokumenttypen, Personen (mit Aliasen), Lebensbereiche, Einstellungen; je Eintrag die verknüpfte Paperless-ID |
+| `taxonomy` | die Taxonomie als ein validiertes JSON-Dokument (Dokumenttypen, Personen mit Aliasen, Lebensbereiche, Einstellungen; je Eintrag die verknüpfte Paperless-ID) |
 
 **Konflikte:** Vor dem Schreiben wird das Dokument neu geladen. Hat es sich seit dem Auslesen in Paperless geändert, zeigt die Prüfliste den Unterschied, statt ihn zu überschreiben. Beim Rückgängigmachen genauso: Weicht der aktuelle Wert vom damals geschriebenen ab, wird nachgefragt.
 
@@ -154,11 +154,13 @@ SQLite-Datei im Datenordner (`/data/pilot.db`, WAL-Modus), SQLAlchemy 2 (async) 
 |---|---|---|
 | GET | `/api/system/status` | wie bisher, dazu Zahlen der Warteschlange |
 | GET | `/api/events` | Server-Sent Events: Aufträge, Vorschläge, Rechner |
-| GET/PATCH | `/api/hosts`, `/api/hosts/{name}` | Rechner, Pause, Zeitfenster, HA-Regeln |
+| GET | `/api/hosts` | Rechner mit Zustand und Freigabe |
+| POST | `/api/hosts/refresh` | sofort neu prüfen |
+| PUT | `/api/hosts/{name}/rules` | Pause, Zeitfenster, HA-Regeln |
 | GET/PUT | `/api/taxonomy` | Taxonomie lesen und speichern (mit Validierung) |
 | GET | `/api/taxonomy/sync` | Abgleich mit Paperless: was fehlt, was ist verknüpft |
 | POST | `/api/taxonomy/sync` | fehlende Objekte in Paperless anlegen |
-| GET/POST | `/api/taxonomy/export`, `/api/taxonomy/import` | Sicherung als JSON |
+| GET | `/api/taxonomy/export` | Sicherung als JSON (Import: Datei in der Oberfläche, gespeichert per `PUT`) |
 | POST | `/api/jobs/enqueue` | einreihen: Posteingang, Tag oder Dokument-IDs |
 | GET | `/api/jobs?status=` | Warteschlange, Fehler |
 | POST | `/api/jobs/{id}/retry` | Fehler erneut versuchen |
@@ -166,6 +168,7 @@ SQLite-Datei im Datenordner (`/data/pilot.db`, WAL-Modus), SQLAlchemy 2 (async) 
 | GET | `/api/suggestions/{id}` | Vorschlag mit aktuellem Stand des Dokuments |
 | POST | `/api/suggestions/{id}/accept` | übernehmen, optional mit deinen Korrekturen je Feld |
 | POST | `/api/suggestions/{id}/reject` | verwerfen, mit Grund |
+| POST | `/api/suggestions/{id}/reextract` | neu auslesen (mit Vorrang) |
 | GET | `/api/documents/{id}/preview`, `/thumb` | PDF-Vorschau, vom Backend durchgereicht (der Browser hat keinen Paperless-Token) |
 | GET | `/api/changes` | Verlauf |
 | POST | `/api/changes/{id}/revert` | rückgängig machen |
@@ -214,7 +217,7 @@ Eine Karte je Rechner mit:
 - einem Satz, warum der Rechner gerade (nicht) arbeitet, z. B. „Wartet: Mac wird benutzt, Zeitfenster ab 20:00“.
 
 ### 8.5 Regeln → Taxonomie
-- **Drei Listen** für Dokumenttypen, Personen und Lebensbereiche. Einträge lassen sich inline bearbeiten und per Ziehen sortieren.
+- **Drei Listen** für Dokumenttypen, Personen und Lebensbereiche. Einträge lassen sich inline bearbeiten.
 - **Je Eintrag:** Beschreibung bzw. Aliase und der Paperless-Status (verknüpft / fehlt / Namen weichen ab).
 - **Leiste „Mit Paperless abgleichen“:** Vorschau der anzulegenden Objekte, dann Bestätigen.
 - **Hinweise beim Speichern:** Die Oberfläche warnt vor doppelten Namen und vor leeren Beschreibungen, denn Beschreibungen verbessern die Ergebnisse des Modells.
@@ -280,3 +283,27 @@ Jeder Schritt ist ein eigener, grün getesteter Commit bzw. Pull Request:
 - **Mac:** HA-Companion-App installieren und den Sensor „Active“ aktivieren. In Home Assistant ist dafür derzeit noch keine Entität vorhanden.
 - **Gaming-PC** (optional für Phase 1): Ollama im Netz freigeben, HASS.Agent mit einem Sensor für „Spiel läuft“.
 - **Paperless:** Workflow „Dokument hinzugefügt → Tag `ai:todo` setzen“ anlegen, sobald Schritt 1.4 fertig ist.
+
+## 14. Umsetzung (2026-10-30)
+
+Alle Schritte 1.1–1.7 sind umgesetzt, je Schritt ein Commit.
+
+**Abweichungen vom Plan:**
+- Die Taxonomie liegt als ein JSON-Dokument in der Datenbank statt in mehreren Tabellen. Sie wird immer als Ganzes gelesen und gespeichert, das ist einfacher und genauso streng validiert.
+- Einträge im Editor lassen sich nicht per Ziehen sortieren; die Reihenfolge hat für das Modell keine Bedeutung.
+- Zusätzlich gibt es einen Kommandozeilenbefehl `paperless-pilot extract <id>`, der ausliest, ohne zu schreiben, zum Ausprobieren von Modellen und Prompts.
+
+**Erkenntnisse aus dem Probelauf an echten Dokumenten** (gemma4:26b, Mac M4 Pro):
+
+| Beobachtung | Folge |
+|---|---|
+| Mit Denkmodus mehrere Minuten je Dokument | `think: false` → 5–16 s je Dokument |
+| ISO-Daten wurden verdreht („0502-10-20“) | Modell liefert `TT.MM.JJJJ`, der Code parst |
+| Empfänger als Absender erkannt | Haushaltspersonen sind nie Absender (Prompt, Kandidatenliste, Prüfung) |
+| Dateiname als Titel übernommen | bisheriger Titel nicht mehr im Prompt; Titel = Dateiname → Warnung |
+| Datum aus OCR-Müll („130t2c26“) galt als belegt | Monat muss im Zitat stehen |
+
+**Tests:**
+- Backend: 207 Tests, 97 % Abdeckung.
+- Frontend: 65 Tests, 98 % Zeilenabdeckung.
+- Ende-zu-Ende: 4 Playwright-Tests gegen den Demo-Modus.

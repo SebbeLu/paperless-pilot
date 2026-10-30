@@ -52,7 +52,7 @@ function ChangeCard({ change, lookups }: { change: Change; lookups: Lookups | un
   const [confirmForce, setConfirmForce] = useState(false);
   const conflict =
     revert.error instanceof ApiError && revert.error.status === 409 ? revert.error : null;
-  const diffs = describe(change.before, change.after, lookups);
+  const diffs = describeChange(change.before, change.after, lookups);
   const isApply = change.kind === "apply";
 
   return (
@@ -122,7 +122,7 @@ function ChangeCard({ change, lookups }: { change: Change; lookups: Lookups | un
 
 type Diff = { label: string; before: string; after: string };
 
-export function describe(
+export function describeChange(
   before: DocumentState,
   after: DocumentState,
   lookups: Lookups | undefined,

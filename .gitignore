@@ -25,3 +25,6 @@ frontend/coverage/
 
 # Lokale Datenbank
 backend/.data/
+backend/.e2e-data/
+frontend/test-results/
+frontend/playwright-report/

@@ -1,0 +1,22 @@
+{
+  "document_types": [
+    { "name": "Rechnung", "description": "Rechnungen, Quittungen, Kassenbons" },
+    { "name": "Bescheid", "description": "Behördliche Entscheidungen, z. B. Steuerbescheid" },
+    { "name": "Bescheinigung", "description": "Nachweise, Bestätigungen, Arbeitsunfähigkeitsbescheinigungen" },
+    { "name": "Kündigung", "description": "Kündigungen und Kündigungsbestätigungen" },
+    { "name": "Sonstiges", "description": "Alles andere" }
+  ],
+  "persons": [
+    { "name": "Alex", "aliases": ["Alex Beispiel"], "description": "Erwachsene Person" },
+    { "name": "Kim", "aliases": ["Kim Beispiel"], "description": "Erwachsene Person" }
+  ],
+  "areas": [
+    { "name": "Gesundheit", "description": "Arzt, Krankenkasse, Apotheke" },
+    { "name": "Steuer", "description": "Finanzamt, Steuererklärung" },
+    { "name": "Wohnen", "description": "Miete, Strom, Haushalt" },
+    { "name": "Einkauf", "description": "Rechnungen von Händlern" },
+    { "name": "Freizeit", "description": "Vereine, Hobbys" }
+  ],
+  "correspondent_exclude_pattern": "^o_",
+  "remove_inbox_tag_on_accept": true
+}

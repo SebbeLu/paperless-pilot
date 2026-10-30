@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from paperless_pilot import __version__
+from paperless_pilot.adapters.demo import demo_adapters, seed_demo
 from paperless_pilot.api.container import Adapters, build_container, real_adapters
 from paperless_pilot.api.errors import register_error_handlers
 from paperless_pilot.api.routes import router
@@ -22,7 +23,7 @@ type AdapterFactory = Callable[[Settings], AbstractAsyncContextManager[Adapters]
 
 
 def default_adapters(settings: Settings) -> AbstractAsyncContextManager[Adapters]:
-    return real_adapters(settings)
+    return demo_adapters(settings) if settings.demo else real_adapters(settings)
 
 
 def create_app(
@@ -37,6 +38,8 @@ def create_app(
             build_container(settings, adapters) as container,
         ):
             app.state.container = container
+            if settings.demo:
+                await seed_demo(container)
             await container.registry.refresh()
             background = (
                 run_background(

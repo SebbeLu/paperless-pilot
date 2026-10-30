@@ -4,7 +4,7 @@ import { HttpResponse, http } from "msw";
 import { renderApp } from "@/test/render";
 import { change, lookups } from "@/test/review-fixtures";
 import { server } from "@/test/server";
-import { describe as describeChange } from "./history-page";
+import { describeChange } from "./history-page";
 
 function serve(pages: ReturnType<typeof change>[][], options: { conflict?: boolean } = {}) {
   const requests: URLSearchParams[] = [];
@@ -103,7 +103,7 @@ describe("Verlauf", () => {
   });
 });
 
-describe("describe", () => {
+describe("describeChange", () => {
   it("zeigt nur geänderte Felder und kommt ohne Auswahllisten aus", () => {
     const c = change(1);
     expect(describeChange(c.before, c.before, undefined)).toEqual([]);

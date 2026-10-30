@@ -16,6 +16,7 @@ from paperless_pilot.adapters.db.repositories import (
     SuggestionRepository,
     TaxonomyRepository,
 )
+from paperless_pilot.adapters.demo import DEMO_MODEL
 from paperless_pilot.adapters.homeassistant import HomeAssistantClient
 from paperless_pilot.adapters.ollama import OllamaHost
 from paperless_pilot.adapters.paperless import PaperlessClient
@@ -109,7 +110,7 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
         host_settings = HostSettingsRepository(engine)
         registry = HostRegistry(
             adapters.hosts,
-            settings.extraction_model,
+            DEMO_MODEL if settings.demo else settings.extraction_model,
             {h.name: h.model for h in settings.ollama_hosts if h.model},
             host_settings,
             adapters.availability,

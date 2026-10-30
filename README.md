@@ -3,6 +3,7 @@
 Bearbeitet Dokumente in [Paperless-ngx](https://docs.paperless-ngx.com/) automatisch mit lokalen Sprachmodellen über [Ollama](https://ollama.com/): bessere OCR, Titel, Korrespondent, Dokumenttyp, Tags und Felder. Gearbeitet wird, sobald ein Ollama-Rechner im Netz verfügbar ist. Eine Web-Oberfläche dient zum Prüfen, Aufräumen und Steuern.
 
 - Konzept: [docs/konzept.md](docs/konzept.md)
+- Plan Phase 1: [docs/phase-1.md](docs/phase-1.md)
 
 **Stand:** Phase 0 (Fundament): Grundgerüst, Anbindung an Paperless und Ollama, Übersichtsseite mit Systemstatus.
 

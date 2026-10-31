@@ -119,17 +119,23 @@ def test_known_correspondent_without_evidence_is_flagged() -> None:
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
-        ({"document_date": None}, "kein Datum erkannt"),
+        ({"document_date": None}, "kein Datum erkannt, bisheriges bleibt"),
         ({"document_date": "01.01.2027"}, "liegt in der Zukunft"),
         ({"document_date": "01.01.1901"}, "ungewöhnlich alt"),
         ({"date_evidence": "am 01.01.2025 erfunden"}, "nicht im Text belegt"),
         ({"document_date": "12.09.2024"}, "Jahr passt nicht zum Zitat"),
-        ({"document_date": "0502-10-20"}, "Datum „0502-10-20“ nicht lesbar"),
+        ({"document_date": "0502-10-20"}, "Datum „0502-10-20“ nicht lesbar, bisheriges bleibt"),
         ({"document_date": "12.07.2025"}, "Monat passt nicht zum Zitat"),
     ],
 )
 def test_date_checks(overrides: dict[str, object], message: str) -> None:
     assert run(**overrides).checks["created"].message == message
+
+
+@pytest.mark.parametrize("document_date", [None, "0502-10-20"])
+def test_unreadable_date_keeps_current(document_date: str | None) -> None:
+    doc = document(created=date(2024, 3, 1))
+    assert run(doc=doc, document_date=document_date).proposed.created == date(2024, 3, 1)
 
 
 @pytest.mark.parametrize(

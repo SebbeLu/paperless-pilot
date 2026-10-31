@@ -324,11 +324,14 @@ def parse_german_date(value: str | None, today: date) -> date | None:
 
 def _date(
     value: date | None, raw: str | None, evidence: str | None, document: Document, today: date
-) -> tuple[date | None, FieldCheck]:
+) -> tuple[date, FieldCheck]:
     if value is None:
+        # Das bisherige Datum bleibt, damit das Formular zeigt, was geschrieben wird
         if raw:
-            return None, FieldCheck(status=CheckStatus.WARN, message=f"Datum „{raw}“ nicht lesbar")
-        return None, FieldCheck(status=CheckStatus.INFO, message="kein Datum erkannt")
+            message = f"Datum „{raw}“ nicht lesbar, bisheriges bleibt"
+            return document.created, FieldCheck(status=CheckStatus.WARN, message=message)
+        message = "kein Datum erkannt, bisheriges bleibt"
+        return document.created, FieldCheck(status=CheckStatus.INFO, message=message)
     if problem := _date_problem(value, evidence, document, today):
         return value, FieldCheck(status=CheckStatus.WARN, message=problem, evidence=evidence)
     return value, FieldCheck(status=CheckStatus.OK, message="belegt", evidence=evidence)

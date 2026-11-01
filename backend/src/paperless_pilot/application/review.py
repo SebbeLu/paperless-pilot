@@ -1,5 +1,7 @@
 """Anwendungsfall Prüfliste: Vorschläge übernehmen, verwerfen oder neu auslesen."""
 
+import logging
+
 from pydantic import BaseModel
 
 from paperless_pilot.adapters.db.repositories import (
@@ -9,9 +11,15 @@ from paperless_pilot.adapters.db.repositories import (
     TaxonomyRepository,
 )
 from paperless_pilot.application.events import EventBus
+from paperless_pilot.application.lessons import LessonService
 from paperless_pilot.domain.changes import Actor, Change, ChangeKind, DocumentState, NewChange
 from paperless_pilot.domain.clock import Clock
-from paperless_pilot.domain.errors import ConflictError, NotFoundError, ValidationFailedError
+from paperless_pilot.domain.errors import (
+    ConflictError,
+    NotFoundError,
+    PilotError,
+    ValidationFailedError,
+)
 from paperless_pilot.domain.extraction import current_values
 from paperless_pilot.domain.jobs import JobKind
 from paperless_pilot.domain.matching import normalize_name
@@ -19,6 +27,8 @@ from paperless_pilot.domain.models import Document, DocumentPatch
 from paperless_pilot.domain.ports import DocumentRepository
 from paperless_pilot.domain.suggestions import MetadataValues, Suggestion, SuggestionStatus
 from paperless_pilot.domain.taxonomy import Taxonomy
+
+logger = logging.getLogger(__name__)
 
 REEXTRACT_PRIORITY = 10
 
@@ -38,6 +48,7 @@ class ReviewService:
         changes: ChangeRepository,
         jobs: JobRepository,
         taxonomy: TaxonomyRepository,
+        lessons: LessonService,
         clock: Clock,
         events: EventBus,
     ) -> None:
@@ -46,6 +57,7 @@ class ReviewService:
         self._changes = changes
         self._jobs = jobs
         self._taxonomy = taxonomy
+        self._lessons = lessons
         self._clock = clock
         self._events = events
 
@@ -107,6 +119,18 @@ class ReviewService:
             self._clock.now(),
             note=f"korrigiert: {', '.join(corrected)}" if corrected else None,
         )
+        final = values.model_copy(
+            update={
+                "title": patch.title,
+                "correspondent_id": correspondent_id,
+                "new_correspondent": None,
+                "created": patch.created,
+            }
+        )
+        try:
+            await self._lessons.learn(suggestion, final, document)
+        except PilotError:  # die Übernahme selbst ist schon geschrieben
+            logger.warning("Dokument %d: Korrektur nicht als Beispiel gemerkt", document.id)
         self._events.publish("suggestions", document.id)
         self._events.publish("changes", document.id)
         return change

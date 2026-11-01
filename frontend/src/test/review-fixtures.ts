@@ -89,6 +89,7 @@ export function suggestion(id: number, overrides: Partial<Suggestion> = {}): Sug
       area: { status: "ok", message: "vom Modell gewählt", evidence: null },
       title: { status: "ok", message: "", evidence: null },
     },
+    lesson_ids: [],
     ...overrides,
   };
 }

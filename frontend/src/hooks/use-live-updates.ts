@@ -8,6 +8,7 @@ const TOPICS = {
   changes: [queryKeys.changes],
   hosts: [queryKeys.hosts],
   taxonomy: [queryKeys.taxonomy, queryKeys.lookups],
+  lessons: [queryKeys.lessons],
 } as const;
 
 export function invalidateFor(client: QueryClient, topic: keyof typeof TOPICS) {

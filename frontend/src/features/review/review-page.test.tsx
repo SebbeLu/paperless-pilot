@@ -219,6 +219,14 @@ describe("Prüfen", () => {
     expect(await screen.findByText("Paperless nicht erreichbar")).toBeInTheDocument();
   });
 
+  it("nennt die berücksichtigten früheren Korrekturen", async () => {
+    setup([suggestion(1, { lesson_ids: [4, 9] })]);
+
+    expect(
+      await screen.findByText(/gemma4:26b auf Mac · 23 s · 2 frühere Korrekturen berücksichtigt/),
+    ).toBeInTheDocument();
+  });
+
   it("zeigt den leeren Zustand mit Hinweis auf die Warteschlange", async () => {
     setup([]);
     expect(await screen.findByText("Alles geprüft")).toBeInTheDocument();

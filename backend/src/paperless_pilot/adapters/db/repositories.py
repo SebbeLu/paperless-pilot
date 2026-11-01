@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Row, and_, func, insert, select, update
+from sqlalchemy import Row, and_, delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from paperless_pilot.adapters.db import schema as t
@@ -16,6 +16,7 @@ from paperless_pilot.domain.jobs import (
     JobStatus,
     QueueStats,
 )
+from paperless_pilot.domain.lessons import Lesson, NewLesson
 from paperless_pilot.domain.suggestions import NewSuggestion, Suggestion, SuggestionStatus
 from paperless_pilot.domain.taxonomy import Taxonomy
 
@@ -300,6 +301,53 @@ class ChangeRepository:
 
 def _change(row: Row[Any]) -> Change:
     return Change.model_validate(dict(row._mapping))
+
+
+class LessonRepository:
+    """Korrekturen als Beispiele; je Dokument gilt nur die neueste."""
+
+    def __init__(self, engine: AsyncEngine) -> None:
+        self._engine = engine
+
+    async def save(self, new: NewLesson, now: datetime) -> Lesson:
+        async with self._engine.begin() as conn:
+            await conn.execute(delete(t.lessons).where(t.lessons.c.document_id == new.document_id))
+            row = (
+                await conn.execute(
+                    insert(t.lessons)
+                    .values(**new.model_dump(mode="json"), active=True, created_at=now)
+                    .returning(t.lessons)
+                )
+            ).one()
+            return _lesson(row)
+
+    async def list_active(self) -> list[Lesson]:
+        query = select(t.lessons).where(t.lessons.c.active).order_by(t.lessons.c.id.desc())
+        async with self._engine.connect() as conn:
+            return [_lesson(r) for r in await conn.execute(query)]
+
+    async def forget(self, lesson_id: int) -> bool:
+        """Abschalten statt löschen, damit das Nachlernen beim Start sie nicht wieder anlegt."""
+        async with self._engine.begin() as conn:
+            result = await conn.execute(
+                update(t.lessons)
+                .where(t.lessons.c.id == lesson_id, t.lessons.c.active)
+                .values(active=False)
+            )
+            return bool(result.rowcount)
+
+    async def remove_for_suggestion(self, suggestion_id: int) -> None:
+        async with self._engine.begin() as conn:
+            await conn.execute(delete(t.lessons).where(t.lessons.c.suggestion_id == suggestion_id))
+
+    async def known_suggestion_ids(self) -> set[int]:
+        async with self._engine.connect() as conn:
+            rows = await conn.execute(select(t.lessons.c.suggestion_id))
+            return {int(r.suggestion_id) for r in rows}
+
+
+def _lesson(row: Row[Any]) -> Lesson:
+    return Lesson.model_validate(dict(row._mapping))
 
 
 class HostSettingsRepository:

@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ApiError,
   api,
   type HostRules,
   type MetadataValues,
@@ -18,6 +19,7 @@ export const queryKeys = {
   jobs: ["jobs"] as const,
   suggestions: ["suggestions"] as const,
   changes: ["changes"] as const,
+  lessons: ["lessons"] as const,
 };
 
 export async function fetchSystemStatus(): Promise<SystemStatus> {
@@ -151,6 +153,7 @@ function useSuggestionAction<T, R>(action: (args: T) => Promise<R>) {
     mutationFn: action,
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.suggestions });
+      void client.invalidateQueries({ queryKey: queryKeys.lessons });
       void client.invalidateQueries({ queryKey: queryKeys.status });
       void client.invalidateQueries({ queryKey: queryKeys.changes });
       void client.invalidateQueries({ queryKey: queryKeys.lookups });
@@ -219,4 +222,27 @@ export function useRevertChange() {
       }),
     ),
   );
+}
+
+export function useLessons() {
+  return useQuery({
+    queryKey: queryKeys.lessons,
+    queryFn: () => unwrap(api.GET("/api/lessons")),
+  });
+}
+
+export function useForgetLesson() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      // 204 ohne Inhalt – deshalb nicht über unwrap
+      const { response } = await api.DELETE("/api/lessons/{lesson_id}", {
+        params: { path: { lesson_id: id } },
+      });
+      if (!response.ok) {
+        throw new ApiError(`Backend antwortet mit HTTP ${response.status}`, response.status, null);
+      }
+    },
+    onSuccess: () => void client.invalidateQueries({ queryKey: queryKeys.lessons }),
+  });
 }

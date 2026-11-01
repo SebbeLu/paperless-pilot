@@ -56,6 +56,7 @@ class NewSuggestion(BaseModel):
     current: MetadataValues
     proposed: MetadataValues
     checks: dict[str, FieldCheck]
+    lesson_ids: list[int] = []  # frühere Korrekturen, die das Modell als Beispiel bekam
 
 
 class Suggestion(NewSuggestion):

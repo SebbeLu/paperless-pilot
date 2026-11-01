@@ -11,7 +11,8 @@ Frau Alexandra Muster
 Rechnung Nr. 4711
 Musterstadt, den 12.09.2025
 Bürostuhl Ergo, 1 Stück, 249,00 EUR
-Gesamtbetrag: 249,00 EUR"""
+Gesamtbetrag: 249,00 EUR
+Vielen Dank für Ihren Einkauf. Bitte überweisen Sie den Betrag innerhalb von 14 Tagen."""
 
 
 def document(doc_id: int = 1, **overrides: Any) -> Document:

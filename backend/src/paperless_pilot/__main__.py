@@ -4,12 +4,10 @@ import argparse
 import asyncio
 import json
 import logging
-from zoneinfo import ZoneInfo
 
 import uvicorn
 
 from paperless_pilot.api.container import build_container, real_adapters
-from paperless_pilot.application.extraction import ExtractionService
 from paperless_pilot.config import Settings
 
 
@@ -52,14 +50,8 @@ async def _extract(
         if not hosts:
             msg = f"Kein Ollama-Rechner {host_name or ''} konfiguriert"
             raise SystemExit(msg)
-        service = ExtractionService(
-            adapters.paperless,
-            container.taxonomy_repository,
-            adapters.clock,
-            ZoneInfo(settings.timezone),
-        )
         for document_id in document_ids:
-            suggestion = await service.extract(
+            suggestion = await container.extraction.extract(
                 document_id, hosts[0], model or settings.extraction_model
             )
             print(json.dumps(suggestion.model_dump(mode="json"), indent=2, ensure_ascii=False))

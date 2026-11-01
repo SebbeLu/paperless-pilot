@@ -2,6 +2,7 @@
 
 from paperless_pilot.adapters.db.repositories import ChangeRepository, SuggestionRepository
 from paperless_pilot.application.events import EventBus
+from paperless_pilot.application.lessons import LessonService
 from paperless_pilot.domain.changes import Actor, Change, ChangeKind, DocumentState, NewChange
 from paperless_pilot.domain.clock import Clock
 from paperless_pilot.domain.errors import ConflictError, NotFoundError, ValidationFailedError
@@ -23,12 +24,14 @@ class HistoryService:
         paperless: DocumentRepository,
         changes: ChangeRepository,
         suggestions: SuggestionRepository,
+        lessons: LessonService,
         clock: Clock,
         events: EventBus,
     ) -> None:
         self._paperless = paperless
         self._changes = changes
         self._suggestions = suggestions
+        self._lessons = lessons
         self._clock = clock
         self._events = events
 
@@ -73,6 +76,7 @@ class HistoryService:
         if change.suggestion_id is not None:
             await self._suggestions.set_status(change.suggestion_id, SuggestionStatus.OPEN, None)
             await self._suggestions.set_document_modified(change.suggestion_id, updated.modified)
+            await self._lessons.unlearn(change.suggestion_id)
             self._events.publish("suggestions", document.id)
         self._events.publish("changes", document.id)
         return revert

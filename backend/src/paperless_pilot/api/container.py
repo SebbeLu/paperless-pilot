@@ -13,6 +13,7 @@ from paperless_pilot.adapters.db.repositories import (
     ChangeRepository,
     HostSettingsRepository,
     JobRepository,
+    LessonRepository,
     SuggestionRepository,
     TaxonomyRepository,
 )
@@ -25,6 +26,7 @@ from paperless_pilot.application.extraction import ExtractionService
 from paperless_pilot.application.history import HistoryService
 from paperless_pilot.application.hosts import HostRegistry
 from paperless_pilot.application.intake import IntakeService
+from paperless_pilot.application.lessons import LessonService
 from paperless_pilot.application.processing import JobProcessor, Scheduler
 from paperless_pilot.application.review import ReviewService
 from paperless_pilot.application.system_status import SystemStatusService
@@ -65,6 +67,7 @@ class Container:
     scheduler: Scheduler
     review: ReviewService
     history: HistoryService
+    lessons: LessonService
 
 
 @asynccontextmanager
@@ -118,8 +121,17 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
             tz,
             events,
         )
-        extraction = ExtractionService(paperless, taxonomy_repository, clock, tz)
         changes = ChangeRepository(engine)
+        lessons = LessonService(
+            paperless,
+            LessonRepository(engine),
+            suggestions,
+            changes,
+            taxonomy_repository,
+            clock,
+            events,
+        )
+        extraction = ExtractionService(paperless, taxonomy_repository, lessons, clock, tz)
         processor = JobProcessor(
             paperless, jobs, suggestions, taxonomy_repository, extraction, registry, clock, events
         )
@@ -147,9 +159,10 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
                 lease_for=timedelta(seconds=settings.llm_timeout_seconds + 120),
             ),
             review=ReviewService(
-                paperless, suggestions, changes, jobs, taxonomy_repository, clock, events
+                paperless, suggestions, changes, jobs, taxonomy_repository, lessons, clock, events
             ),
-            history=HistoryService(paperless, changes, suggestions, clock, events),
+            history=HistoryService(paperless, changes, suggestions, lessons, clock, events),
+            lessons=lessons,
         )
     finally:
         await engine.dispose()

@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-type Topic = Literal["jobs", "suggestions", "changes", "hosts", "taxonomy"]
+type Topic = Literal["jobs", "suggestions", "changes", "hosts", "taxonomy", "lessons"]
 
 _QUEUE_SIZE = 100
 

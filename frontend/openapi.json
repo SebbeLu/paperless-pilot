@@ -792,6 +792,68 @@
         }
       }
     },
+    "/api/lessons": {
+      "get": {
+        "tags": [
+          "lessons"
+        ],
+        "summary": "List Lessons",
+        "description": "Gelernte Korrekturen, die das Modell bei ähnlichen Dokumenten als Beispiel bekommt.",
+        "operationId": "list_lessons_api_lessons_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Lesson"
+                  },
+                  "type": "array",
+                  "title": "Response List Lessons Api Lessons Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lessons/{lesson_id}": {
+      "delete": {
+        "tags": [
+          "lessons"
+        ],
+        "summary": "Forget Lesson",
+        "description": "Korrektur vergessen – sie wird nicht mehr als Beispiel verwendet.",
+        "operationId": "forget_lesson_api_lessons__lesson_id__delete",
+        "parameters": [
+          {
+            "name": "lesson_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Lesson Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/{kind}": {
       "get": {
         "tags": [
@@ -1567,6 +1629,61 @@
         ],
         "title": "JobStatus"
       },
+      "Lesson": {
+        "properties": {
+          "document_id": {
+            "type": "integer",
+            "title": "Document Id"
+          },
+          "suggestion_id": {
+            "type": "integer",
+            "title": "Suggestion Id"
+          },
+          "excerpt": {
+            "type": "string",
+            "title": "Excerpt"
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name",
+            "default": ""
+          },
+          "correct": {
+            "$ref": "#/components/schemas/NamedValues"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/NamedValues"
+          },
+          "corrected": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Corrected"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "suggestion_id",
+          "excerpt",
+          "correct",
+          "proposed",
+          "corrected",
+          "id",
+          "created_at"
+        ],
+        "title": "Lesson"
+      },
       "Lookups": {
         "properties": {
           "correspondents": {
@@ -1681,6 +1798,77 @@
         "type": "object",
         "title": "MetadataValues",
         "description": "Die Felder, die paperless-pilot setzt – aktuell oder vorgeschlagen."
+      },
+      "NamedValues": {
+        "properties": {
+          "document_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Type"
+          },
+          "correspondent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correspondent"
+          },
+          "created": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "persons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Persons",
+            "default": []
+          },
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "title": "NamedValues",
+        "description": "Werte als Namen statt Paperless-IDs – so versteht sie das Modell."
       },
       "Option": {
         "properties": {
@@ -1954,6 +2142,14 @@
             },
             "type": "object",
             "title": "Checks"
+          },
+          "lesson_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Lesson Ids",
+            "default": []
           },
           "id": {
             "type": "integer",

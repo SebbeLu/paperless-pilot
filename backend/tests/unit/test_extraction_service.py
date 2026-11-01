@@ -3,8 +3,15 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from paperless_pilot.adapters.db.repositories import TaxonomyRepository
+from paperless_pilot.adapters.db.repositories import (
+    ChangeRepository,
+    LessonRepository,
+    SuggestionRepository,
+    TaxonomyRepository,
+)
+from paperless_pilot.application.events import EventBus
 from paperless_pilot.application.extraction import ExtractionService
+from paperless_pilot.application.lessons import LessonService
 from paperless_pilot.domain.errors import NoTextError
 from paperless_pilot.domain.extraction import SYSTEM_PROMPT
 from tests.clock import FakeClock
@@ -20,7 +27,16 @@ async def service(
     await repo.save(taxonomy(), clock.now())
     paperless = FakeDocumentRepository([document(1), document(2, content="  ")])
     paperless.correspondents.extend(CORRESPONDENTS)
-    return ExtractionService(paperless, repo, clock, ZoneInfo("Europe/Berlin")), paperless
+    lessons = LessonService(
+        paperless,
+        LessonRepository(engine),
+        SuggestionRepository(engine),
+        ChangeRepository(engine),
+        repo,
+        clock,
+        EventBus(),
+    )
+    return ExtractionService(paperless, repo, lessons, clock, ZoneInfo("Europe/Berlin")), paperless
 
 
 async def test_extract_builds_suggestion_without_writing(

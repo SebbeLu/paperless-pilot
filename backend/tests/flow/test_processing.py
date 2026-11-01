@@ -178,7 +178,12 @@ async def test_background_runner_processes_queue(p: Pipeline) -> None:
     p.paperless.edit(1, tag_ids=(TODO,))
 
     async with run_background(
-        p.registry, p.intake, p.scheduler, probe_interval=0.01, intake_interval=0.01
+        p.registry,
+        p.intake,
+        p.scheduler,
+        p.lessons,
+        probe_interval=0.01,
+        intake_interval=0.01,
     ):
         for _ in range(200):
             if await p.suggestions.count_open():

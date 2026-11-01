@@ -379,6 +379,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lessons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Lessons
+         * @description Gelernte Korrekturen, die das Modell bei ähnlichen Dokumenten als Beispiel bekommt.
+         */
+        get: operations["list_lessons_api_lessons_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lessons/{lesson_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Forget Lesson
+         * @description Korrektur vergessen – sie wird nicht mehr als Beispiel verwendet.
+         */
+        delete: operations["forget_lesson_api_lessons__lesson_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{document_id}/{kind}": {
         parameters: {
             query?: never;
@@ -726,6 +766,31 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "queued" | "running" | "succeeded" | "failed";
+        /** Lesson */
+        Lesson: {
+            /** Document Id */
+            document_id: number;
+            /** Suggestion Id */
+            suggestion_id: number;
+            /** Excerpt */
+            excerpt: string;
+            /**
+             * File Name
+             * @default
+             */
+            file_name: string;
+            correct: components["schemas"]["NamedValues"];
+            proposed: components["schemas"]["NamedValues"];
+            /** Corrected */
+            corrected: string[];
+            /** Id */
+            id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /**
          * Lookups
          * @description Auswahllisten für die Oberfläche.
@@ -760,6 +825,27 @@ export interface components {
             person_tag_ids: number[];
             /** Area Tag Id */
             area_tag_id?: number | null;
+        };
+        /**
+         * NamedValues
+         * @description Werte als Namen statt Paperless-IDs – so versteht sie das Modell.
+         */
+        NamedValues: {
+            /** Document Type */
+            document_type?: string | null;
+            /** Correspondent */
+            correspondent?: string | null;
+            /** Created */
+            created?: string | null;
+            /**
+             * Persons
+             * @default []
+             */
+            persons: string[];
+            /** Area */
+            area?: string | null;
+            /** Title */
+            title?: string | null;
         };
         /** Option */
         Option: {
@@ -888,6 +974,11 @@ export interface components {
             checks: {
                 [key: string]: components["schemas"]["FieldCheck"];
             };
+            /**
+             * Lesson Ids
+             * @default []
+             */
+            lesson_ids: number[];
             /** Id */
             id: number;
             status: components["schemas"]["SuggestionStatus"];
@@ -1584,6 +1675,55 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Change"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_lessons_api_lessons_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lesson"][];
+                };
+            };
+        };
+    };
+    forget_lesson_api_lessons__lesson_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lesson_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

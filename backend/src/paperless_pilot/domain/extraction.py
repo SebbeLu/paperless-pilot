@@ -13,6 +13,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, create_model
 
 from paperless_pilot.domain.errors import ValidationFailedError
+from paperless_pilot.domain.lessons import Lesson, describe
 from paperless_pilot.domain.matching import (
     evidence_in_text,
     match_correspondent,
@@ -104,6 +105,7 @@ def build_prompt(
     taxonomy: Taxonomy,
     correspondents: list[str],
     text_limit: int = TEXT_LIMIT,
+    lessons: Sequence[Lesson] = (),
 ) -> str:
     def listing(entries: list[TaxonomyEntry]) -> str:
         return "\n".join(
@@ -136,6 +138,17 @@ def build_prompt(
         sections.append(
             "Bekannte Absender (verwende genau diese Schreibweise, wenn einer passt; "
             "sonst den Namen aus dem Briefkopf):\n" + "\n".join(f"- {c}" for c in correspondents)
+        )
+    if lessons:
+        examples = "\n\n".join(
+            f"Beispiel {n} – Datei „{lesson.file_name}“, Textanfang: „{lesson.excerpt}“\n"
+            + "\n".join(describe(lesson))
+            for n, lesson in enumerate(lessons, start=1)
+        )
+        sections.append(
+            "Frühere Korrekturen bei ähnlichen Dokumenten. Ist das Dokument gleichartig, übernimm "
+            "die Einordnung aus dem Beispiel vollständig, auch alle Personen. Zitate kommen "
+            "trotzdem nur aus dem Dokumenttext unten.\n\n" + examples
         )
     sections.append(
         f"Dateiname: {document.original_file_name}\n\n"

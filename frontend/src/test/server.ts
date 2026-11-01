@@ -47,6 +47,7 @@ export const defaultHandlers = [
   http.get("*/api/hosts", () => HttpResponse.json([])),
   http.get("*/api/jobs", () => HttpResponse.json([])),
   http.get("*/api/changes", () => HttpResponse.json([])),
+  http.get("*/api/lessons", () => HttpResponse.json([])),
 ];
 
 export const server = setupServer(...defaultHandlers);

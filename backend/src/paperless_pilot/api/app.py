@@ -46,6 +46,7 @@ def create_app(
                     container.registry,
                     container.intake,
                     container.scheduler,
+                    container.lessons,
                     probe_interval=settings.host_probe_interval_seconds,
                     intake_interval=settings.intake_interval_seconds,
                 )

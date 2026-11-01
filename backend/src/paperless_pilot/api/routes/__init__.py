@@ -6,6 +6,7 @@ from paperless_pilot.api.routes import (
     events,
     hosts,
     jobs,
+    lessons,
     paperless,
     suggestions,
     system,
@@ -21,6 +22,7 @@ for module in (
     jobs,
     suggestions,
     changes,
+    lessons,
     documents,
     events,
 ):

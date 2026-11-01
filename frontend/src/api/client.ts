@@ -21,6 +21,8 @@ export type MetadataValues = Schemas["MetadataValues"];
 export type FieldCheck = Schemas["FieldCheck"];
 export type Change = Schemas["Change"];
 export type DocumentState = Schemas["DocumentState"];
+export type Lesson = Schemas["Lesson"];
+export type NamedValues = Schemas["NamedValues"];
 
 export const api = createClient<paths>({
   baseUrl: globalThis.location?.origin ?? "",

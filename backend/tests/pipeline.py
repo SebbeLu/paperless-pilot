@@ -10,6 +10,7 @@ from paperless_pilot.adapters.db.repositories import (
     ChangeRepository,
     HostSettingsRepository,
     JobRepository,
+    LessonRepository,
     SuggestionRepository,
     TaxonomyRepository,
 )
@@ -18,6 +19,7 @@ from paperless_pilot.application.extraction import ExtractionService
 from paperless_pilot.application.history import HistoryService
 from paperless_pilot.application.hosts import HostRegistry
 from paperless_pilot.application.intake import IntakeService
+from paperless_pilot.application.lessons import LessonService
 from paperless_pilot.application.processing import JobProcessor, Scheduler
 from paperless_pilot.application.review import ReviewService
 from tests.clock import FakeClock
@@ -45,6 +47,7 @@ class Pipeline:
     scheduler: Scheduler
     review: ReviewService
     history: HistoryService
+    lessons: LessonService
 
 
 async def build_pipeline(
@@ -63,9 +66,12 @@ async def build_pipeline(
     registry = HostRegistry(
         hosts, "gemma4:26b", {}, host_settings, availability, clock, BERLIN, events
     )
-    extraction = ExtractionService(paperless, tax, clock, BERLIN)
-    processor = JobProcessor(paperless, jobs, suggestions, tax, extraction, registry, clock, events)
     changes = ChangeRepository(engine)
+    lessons = LessonService(
+        paperless, LessonRepository(engine), suggestions, changes, tax, clock, events
+    )
+    extraction = ExtractionService(paperless, tax, lessons, clock, BERLIN)
+    processor = JobProcessor(paperless, jobs, suggestions, tax, extraction, registry, clock, events)
     return Pipeline(
         paperless=paperless,
         hosts=hosts,
@@ -89,6 +95,7 @@ async def build_pipeline(
             lease_for=timedelta(minutes=12),
             idle_seconds=0.01,
         ),
-        review=ReviewService(paperless, suggestions, changes, jobs, tax, clock, events),
-        history=HistoryService(paperless, changes, suggestions, clock, events),
+        review=ReviewService(paperless, suggestions, changes, jobs, tax, lessons, clock, events),
+        history=HistoryService(paperless, changes, suggestions, lessons, clock, events),
+        lessons=lessons,
     )

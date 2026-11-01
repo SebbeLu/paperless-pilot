@@ -97,7 +97,7 @@ So lässt sich der Kern vollständig mit Attrappen testen; die Adapter bekommen 
 - **Einschwingphase:** Alle Vorschläge gehen zunächst in die Prüfliste.
 - Für jede Kombination aus Feld und Dokumenttyp misst das Tool die **Übernahmequote** (unverändert übernommen ÷ geprüft).
 - Ab einer Mindestzahl an Prüfungen und einer Quote ≥ Ziel (Standard 95 %) wird diese Kombination **automatisch** übernommen. Steigt die Korrekturrate wieder, fällt sie zurück in die Prüfung.
-- **Korrekturen werden zu Beispielen** im Prompt, je Korrespondent bzw. Dokumenttyp. Das Tool wird so ohne Nachtraining des Modells besser.
+- **Korrekturen werden zu Beispielen** im Prompt, je Korrespondent bzw. Dokumenttyp. Das Tool wird so ohne Nachtraining des Modells besser. *Vorgezogen und umgesetzt (2026-11-01), siehe README „Lernen aus Korrekturen“.*
 - Stichproben: Auch automatisch übernommene Felder landen gelegentlich in der Prüfliste, damit die Quote ehrlich bleibt.
 
 ## 8. Rechner und Verfügbarkeit

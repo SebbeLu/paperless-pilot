@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { LessonsSection } from "@/features/rules/lessons-section";
 
 type Group = "document_types" | "persons" | "areas";
 
@@ -115,6 +116,7 @@ export function TaxonomyPage() {
           onChange={(entries) => update("areas", entries)}
         />
         <AdvancedSettings draft={draft} onChange={setDraft} sync={data.sync} />
+        <LessonsSection />
       </div>
 
       {dirty && (

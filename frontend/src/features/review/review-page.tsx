@@ -257,6 +257,8 @@ function Review({
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {position} · {suggestion.model} auf {suggestion.host} ·{" "}
             {Math.round(suggestion.duration_ms / 1000)} s
+            {suggestion.lesson_ids.length > 0 &&
+              ` · ${suggestion.lesson_ids.length === 1 ? "1 frühere Korrektur" : `${suggestion.lesson_ids.length} frühere Korrekturen`} berücksichtigt`}
           </p>
         </div>
         <div className="flex">

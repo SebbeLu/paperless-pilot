@@ -14,7 +14,7 @@ Bearbeitet Dokumente in [Paperless-ngx](https://docs.paperless-ngx.com/) automat
 | **Übersicht** | Kennzahlen (Dokumente, Posteingang, zu prüfen, wartend, Fehler), „Posteingang einreihen“, Verbindungsstatus |
 | **Prüfen** | Liste mit unsicheren Vorschlägen zuerst, PDF-Vorschau, Formular mit bisherigem Wert, Vorschlag, Prüfergebnis und Belegzitat; Bedienung per Tastatur |
 | **Verlauf** | Jede Schreibaktion mit Vorher→Nachher und Rückgängig (mit Konfliktprüfung) |
-| **Regeln** | Taxonomie: Dokumenttypen, Personen (mit Aliasen), Lebensbereiche, Status-Tags; Abgleich mit Paperless, Import/Export |
+| **Regeln** | Taxonomie: Dokumenttypen, Personen (mit Aliasen), Lebensbereiche, Status-Tags; Abgleich mit Paperless, Import/Export; gelernte Korrekturen ansehen und vergessen |
 | **Rechner & Modelle** | Status je Ollama-Rechner mit Begründung („Wartet: Rechner wird benutzt, Zeitfenster ab 20:00“), Pause, Zeitfenster, Leerlauf und Sperre über Home Assistant |
 
 **Tastatur in „Prüfen“:** `Enter` übernehmen · `J`/`K` nächster/voriger · `R` verwerfen · `E` ins erste unsichere Feld · `Z` letzte Übernahme rückgängig · `Esc` Feld verlassen · `?` Hilfe
@@ -25,6 +25,16 @@ Bearbeitet Dokumente in [Paperless-ngx](https://docs.paperless-ngx.com/) automat
 2. paperless-pilot holt die Dokumente minütlich ab. Darf ein Rechner arbeiten, liest das Modell das Dokument aus. Das Antwortschema wird aus deiner Taxonomie erzeugt, deshalb sind nur erlaubte Werte möglich.
 3. Der Vorschlag wird geprüft und landet in der Prüfliste. In Paperless wechselt der Tag zu `ai:prüfen`.
 4. Beim Übernehmen werden Typ, Absender, Datum, Titel sowie die Personen- und Lebensbereich-Tags gesetzt, andere Tags bleiben erhalten. Danach trägt das Dokument `ai:fertig`, und der Posteingangs-Tag wird entfernt (abschaltbar).
+
+### Lernen aus Korrekturen
+
+Änderst du beim Übernehmen einen Vorschlag, merkt sich paperless-pilot die Korrektur: was das Modell vorgeschlagen hat, was richtig war, den Textanfang und den Dateinamen. Bei ähnlichen Dokumenten bekommt das Modell bis zu drei solcher Korrekturen als Beispiel im Prompt. Das Modell selbst wird nicht nachtrainiert.
+
+- **Ähnlich** heißt: ähnlicher Textanfang, verstärkt durch den Absender des Beispiels im Text. Bei Dokumenten fast ohne Text (z. B. Fotos, deren OCR nur Zeichensalat liefert) zählt stattdessen ein ähnlicher Dateiname.
+- **Keine Korrektur** ist es, wenn ein leerer Vorschlag einfach den bisherigen Wert behält oder ein neuer Absender wie vorgeschlagen angelegt wird.
+- Ein Dokument lernt nie von sich selbst. Machst du eine Übernahme rückgängig, gilt auch ihre Korrektur nicht mehr.
+- Unter *Regeln → Gelernte Korrekturen* lässt sich eine falsche Korrektur vergessen. In *Prüfen* steht, wie viele Korrekturen ein Vorschlag berücksichtigt hat.
+- Übernahmen von vor dieser Funktion werden beim Start einmalig nachgelernt.
 
 ## Ausprobieren ohne eigene Infrastruktur
 
@@ -67,7 +77,7 @@ docker run -d --name paperless-pilot -p 8080:8080 -v /mnt/user/appdata/paperless
 | `PILOT_EXTRACTION_MODEL` | `gemma4:26b` | Standardmodell fürs Auslesen |
 | `PILOT_HA_URL` | – | Home Assistant (optional) |
 | `PILOT_HA_TOKEN` / `PILOT_HA_TOKEN_FILE` | – | Long-Lived Access Token für Home Assistant |
-| `PILOT_DATA_DIR` | `/data` | SQLite-Datenbank (Aufträge, Vorschläge, Verlauf, Taxonomie, Rechner-Regeln) |
+| `PILOT_DATA_DIR` | `/data` | SQLite-Datenbank (Aufträge, Vorschläge, Verlauf, Taxonomie, Rechner-Regeln, gelernte Korrekturen) |
 | `PILOT_TIMEZONE` | `Europe/Berlin` | Für Zeitfenster und Datumsprüfungen |
 | `PILOT_INTAKE_INTERVAL_SECONDS` | `60` | Takt des Eingangs (`ai:todo`) |
 | `PILOT_HOST_PROBE_INTERVAL_SECONDS` | `30` | Takt der Rechner-Prüfung |
@@ -80,8 +90,8 @@ docker run -d --name paperless-pilot -p 8080:8080 -v /mnt/user/appdata/paperless
 ```
 backend/    Python 3.13 · FastAPI · Pydantic · SQLAlchemy/Alembic (SQLite) · httpx   (uv)
   src/paperless_pilot/
-    domain/        Modell, Regeln (Taxonomie, Freigaben, Auslesen, Abgleich), Ports – ohne Technik
-    application/   Anwendungsfälle: Auslesen, Eingang, Scheduler, Rechner, Prüfen, Verlauf, Taxonomie
+    domain/        Modell, Regeln (Taxonomie, Freigaben, Auslesen, Abgleich, Lernen), Ports – ohne Technik
+    application/   Anwendungsfälle: Auslesen, Eingang, Scheduler, Rechner, Prüfen, Verlauf, Taxonomie, Lernen
     adapters/      Paperless-REST, Ollama, Home Assistant, Datenbank, Demo
     api/           FastAPI-Routen, Server-Sent Events, Verdrahtung, Auslieferung des Frontends
   tests/           unit · db · flow (Abläufe mit Attrappen) · contract (respx) · api · integration

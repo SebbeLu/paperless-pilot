@@ -84,6 +84,7 @@ suggestions = Table(
     Column("created_at", UtcDateTime, nullable=False),
     Column("decided_at", UtcDateTime),
     Column("note", Text),
+    Column("lesson_ids", JSON, nullable=False, default=list),
 )
 
 changes = Table(
@@ -98,6 +99,21 @@ changes = Table(
     Column("after", JSON, nullable=False),
     Column("created_at", UtcDateTime, nullable=False),
     Column("reverted_by", Integer),
+)
+
+lessons = Table(
+    "lessons",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("document_id", Integer, nullable=False, unique=True),
+    Column("suggestion_id", Integer, nullable=False, index=True),
+    Column("excerpt", Text, nullable=False),
+    Column("file_name", Text, nullable=False),
+    Column("correct", JSON, nullable=False),
+    Column("proposed", JSON, nullable=False),
+    Column("corrected", JSON, nullable=False),
+    Column("active", Boolean, nullable=False, default=True),
+    Column("created_at", UtcDateTime, nullable=False),
 )
 
 host_settings = Table(

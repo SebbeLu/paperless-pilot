@@ -4,6 +4,7 @@ import time
 from zoneinfo import ZoneInfo
 
 from paperless_pilot.adapters.db.repositories import TaxonomyRepository
+from paperless_pilot.application.lessons import LessonService
 from paperless_pilot.domain.clock import Clock
 from paperless_pilot.domain.errors import NoTextError
 from paperless_pilot.domain.extraction import (
@@ -25,11 +26,13 @@ class ExtractionService:
         self,
         paperless: DocumentRepository,
         taxonomy: TaxonomyRepository,
+        lessons: LessonService,
         clock: Clock,
         timezone: ZoneInfo,
     ) -> None:
         self._paperless = paperless
         self._taxonomy = taxonomy
+        self._lessons = lessons
         self._clock = clock
         self._tz = timezone
 
@@ -53,11 +56,13 @@ class ExtractionService:
         taxonomy, _ = await self._taxonomy.get()
         output_type = build_output_model(taxonomy)
         correspondents = await self._paperless.list_correspondents()
+        lessons = await self._lessons.for_document(document)
         prompt = build_prompt(
             document,
             taxonomy,
             [c.name for c in candidate_correspondents(correspondents, taxonomy)],
             text_limit=SHORT_TEXT_LIMIT if short else TEXT_LIMIT,
+            lessons=lessons,
         )
 
         started = time.monotonic()
@@ -78,4 +83,5 @@ class ExtractionService:
             current=current_values(document, taxonomy),
             proposed=result.proposed,
             checks=result.checks,
+            lesson_ids=[lesson.id for lesson in lessons],
         )

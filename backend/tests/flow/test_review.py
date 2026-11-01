@@ -152,3 +152,17 @@ async def test_list_puts_uncertain_suggestions_first(p: Pipeline) -> None:
     unsure = await suggest(p, 2, correspondent="Phantasie AG", correspondent_evidence="erfunden")
 
     assert [s.id for s in await p.review.list_open()] == [unsure.id, sure.id]
+
+
+async def test_accept_many_takes_proposals_and_reports_failures(p: Pipeline) -> None:
+    first = await suggest(p, 1, title="Schreibtisch")
+    edited = await suggest(p, 2)
+    p.paperless.edit(2, title="Von Hand geändert")
+
+    result = await p.review.accept_many([first.id, first.id, edited.id, 999])
+
+    assert [c.document_id for c in result.accepted] == [1]
+    assert p.paperless.documents[1].title == "Schreibtisch"
+    assert [f.suggestion_id for f in result.failed] == [edited.id, 999]
+    assert "geändert (Titel)" in result.failed[0].message
+    assert [s.id for s in await p.review.list_open()] == [edited.id]

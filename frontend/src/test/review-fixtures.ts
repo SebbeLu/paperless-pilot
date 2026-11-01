@@ -106,6 +106,7 @@ export function detail(s: Suggestion, overrides: Partial<SuggestionDetail> = {})
 
 export type ReviewBackend = {
   accepted: { id: number; body: { values: MetadataValues; force: boolean } }[];
+  acceptedMany: number[][];
   rejected: number[];
   reextracted: number[];
   reverted: number[];
@@ -141,10 +142,19 @@ export function change(id: number, overrides: Partial<Change> = {}): Change {
 }
 
 /** Kleines Backend: Liste schrumpft nach Entscheidungen. */
-export function reviewHandlers(initial: Suggestion[], options: { conflictOnce?: boolean } = {}) {
+export function reviewHandlers(
+  initial: Suggestion[],
+  options: { conflictOnce?: boolean; failIds?: number[] } = {},
+) {
   let open = [...initial];
   let conflict = options.conflictOnce ?? false;
-  const backend: ReviewBackend = { accepted: [], rejected: [], reextracted: [], reverted: [] };
+  const backend: ReviewBackend = {
+    accepted: [],
+    acceptedMany: [],
+    rejected: [],
+    reextracted: [],
+    reverted: [],
+  };
   const remove = (id: number) => {
     open = open.filter((s) => s.id !== id);
   };
@@ -157,6 +167,20 @@ export function reviewHandlers(initial: Suggestion[], options: { conflictOnce?: 
       return found
         ? HttpResponse.json(detail(found))
         : HttpResponse.json({ detail: "fehlt" }, { status: 404 });
+    }),
+    http.post("*/api/suggestions/accept", async ({ request }) => {
+      const { ids } = (await request.json()) as { ids: number[] };
+      backend.acceptedMany.push(ids);
+      const fail = new Set(options.failIds ?? []);
+      for (const id of ids) if (!fail.has(id)) remove(id);
+      return HttpResponse.json({
+        accepted: ids
+          .filter((id) => !fail.has(id))
+          .map((id) => change(100 + id, { suggestion_id: id })),
+        failed: ids
+          .filter((id) => fail.has(id))
+          .map((id) => ({ suggestion_id: id, message: "In Paperless geändert (Titel)" })),
+      });
     }),
     http.post("*/api/suggestions/:id/accept", async ({ params, request }) => {
       const body = (await request.json()) as ReviewBackend["accepted"][number]["body"];

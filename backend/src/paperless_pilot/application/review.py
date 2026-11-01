@@ -40,6 +40,16 @@ class SuggestionDetail(BaseModel):
     changed_since: list[str]  # Felder, die seit dem Auslesen in Paperless geändert wurden
 
 
+class AcceptFailure(BaseModel):
+    suggestion_id: int
+    message: str
+
+
+class AcceptManyResult(BaseModel):
+    accepted: list[Change]
+    failed: list[AcceptFailure]  # bleiben offen, etwa weil in Paperless inzwischen geändert
+
+
 class ReviewService:
     def __init__(
         self,
@@ -134,6 +144,17 @@ class ReviewService:
         self._events.publish("suggestions", document.id)
         self._events.publish("changes", document.id)
         return change
+
+    async def accept_many(self, suggestion_ids: list[int]) -> AcceptManyResult:
+        """Übernimmt mehrere Vorschläge unverändert; ein Fehler hält die übrigen nicht auf."""
+        result = AcceptManyResult(accepted=[], failed=[])
+        for suggestion_id in dict.fromkeys(suggestion_ids):
+            try:
+                suggestion = await self._get_open(suggestion_id)
+                result.accepted.append(await self.accept(suggestion.id, suggestion.proposed))
+            except PilotError as error:
+                result.failed.append(AcceptFailure(suggestion_id=suggestion_id, message=str(error)))
+        return result
 
     async def reject(self, suggestion_id: int, reason: str | None = None) -> Suggestion:
         """Vorschlag verwerfen; der Status-Tag „prüfen“ wird entfernt, sonst bleibt alles."""

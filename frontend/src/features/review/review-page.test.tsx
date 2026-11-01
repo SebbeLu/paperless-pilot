@@ -146,6 +146,49 @@ describe("Prüfen", () => {
     expect(backend.reverted).toHaveLength(1);
   });
 
+  it("übernimmt markierte Vorschläge gemeinsam und nimmt sie zusammen zurück", async () => {
+    const backend = setup([suggestion(1), suggestion(2), suggestion(3)]);
+    await screen.findByDisplayValue("Bürostuhl 1");
+    const accept = screen.getByRole("button", { name: "Markierte übernehmen" });
+    expect(accept).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "„Bürostuhl 1“ markieren" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "„Bürostuhl 3“ markieren" }));
+    expect(screen.getByText(/2 markiert, davon 2 mit Hinweisen/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Alle markieren" })).toHaveProperty(
+      "indeterminate",
+      true,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "2 markierte übernehmen" }));
+
+    expect(await screen.findByText("2 Vorschläge übernommen.")).toBeInTheDocument();
+    expect(backend.acceptedMany).toEqual([[1, 3]]);
+    expect(await screen.findByDisplayValue("Bürostuhl 2")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Rückgängig/ }));
+    await waitFor(() => expect(backend.reverted).toEqual([101, 103]));
+    expect(screen.queryByText("2 Vorschläge übernommen.")).not.toBeInTheDocument();
+  });
+
+  it("markiert alle oder mit X und meldet, was nicht übernommen wurde", async () => {
+    const backend = setup([suggestion(1), suggestion(2)], { failIds: [2] });
+    await screen.findByDisplayValue("Bürostuhl 1");
+
+    await userEvent.keyboard("x");
+    expect(screen.getByRole("checkbox", { name: "„Bürostuhl 1“ markieren" })).toBeChecked();
+    await userEvent.keyboard("x");
+    expect(screen.getByRole("checkbox", { name: "„Bürostuhl 1“ markieren" })).not.toBeChecked();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Alle markieren" }));
+    await userEvent.click(screen.getByRole("button", { name: "2 markierte übernehmen" }));
+
+    expect(await screen.findByText("„Bürostuhl 1“ übernommen.")).toBeInTheDocument();
+    expect(backend.acceptedMany).toEqual([[1, 2]]);
+    expect(screen.getByText(/1 Vorschlag nicht übernommen/)).toBeInTheDocument();
+    expect(screen.getByText(/Bürostuhl 2: In Paperless geändert \(Titel\)/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "„Bürostuhl 2“ markieren" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "1 markierten übernehmen" })).toBeEnabled();
+  });
+
   it("zeigt Fehler beim Rückgängigmachen", async () => {
     setup();
     server.use(

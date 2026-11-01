@@ -282,6 +282,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/suggestions/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Many
+         * @description Markierte Vorschläge unverändert übernehmen – ohne „Trotzdem“ bei Konflikten.
+         */
+        post: operations["accept_many_api_suggestions_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/suggestions/{suggestion_id}/accept": {
         parameters: {
             query?: never;
@@ -463,6 +483,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptFailure */
+        AcceptFailure: {
+            /** Suggestion Id */
+            suggestion_id: number;
+            /** Message */
+            message: string;
+        };
+        /** AcceptManyRequest */
+        AcceptManyRequest: {
+            /** Ids */
+            ids: number[];
+        };
+        /** AcceptManyResult */
+        AcceptManyResult: {
+            /** Accepted */
+            accepted: components["schemas"]["Change"][];
+            /** Failed */
+            failed: components["schemas"]["AcceptFailure"][];
+        };
         /** AcceptRequest */
         AcceptRequest: {
             values: components["schemas"]["MetadataValues"];
@@ -1505,6 +1544,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_many_api_suggestions_accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptManyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptManyResult"];
                 };
             };
             /** @description Validation Error */

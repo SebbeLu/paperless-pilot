@@ -509,6 +509,48 @@
         }
       }
     },
+    "/api/suggestions/accept": {
+      "post": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Accept Many",
+        "description": "Markierte Vorschläge unverändert übernehmen – ohne „Trotzdem“ bei Konflikten.",
+        "operationId": "accept_many_api_suggestions_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptManyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptManyResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/suggestions/{suggestion_id}/accept": {
       "post": {
         "tags": [
@@ -916,6 +958,64 @@
   },
   "components": {
     "schemas": {
+      "AcceptFailure": {
+        "properties": {
+          "suggestion_id": {
+            "type": "integer",
+            "title": "Suggestion Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suggestion_id",
+          "message"
+        ],
+        "title": "AcceptFailure"
+      },
+      "AcceptManyRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "AcceptManyRequest"
+      },
+      "AcceptManyResult": {
+        "properties": {
+          "accepted": {
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            },
+            "type": "array",
+            "title": "Accepted"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/AcceptFailure"
+            },
+            "type": "array",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "failed"
+        ],
+        "title": "AcceptManyResult"
+      },
       "AcceptRequest": {
         "properties": {
           "values": {

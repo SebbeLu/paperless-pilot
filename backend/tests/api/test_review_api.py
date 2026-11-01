@@ -39,6 +39,17 @@ async def test_list_detail_accept(ready: Api) -> None:
     assert [s["id"] for s in accepted] == [item["id"]]
 
 
+async def test_accept_many(ready: Api) -> None:
+    [item] = (await ready.client.get("/api/suggestions")).json()
+
+    response = await ready.client.post("/api/suggestions/accept", json={"ids": [item["id"], 999]})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [c["after"]["title"] for c in body["accepted"]] == ["Bürostuhl"]
+    assert body["failed"] == [{"suggestion_id": 999, "message": "Vorschlag 999 nicht gefunden"}]
+
+
 async def test_conflict_is_409_with_fields(ready: Api) -> None:
     [item] = (await ready.client.get("/api/suggestions")).json()
     ready.paperless.edit(1, correspondent_id=92)

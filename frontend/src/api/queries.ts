@@ -173,6 +173,12 @@ export function useAcceptSuggestion() {
   );
 }
 
+export function useAcceptSuggestions() {
+  return useSuggestionAction((ids: number[]) =>
+    unwrap(api.POST("/api/suggestions/accept", { body: { ids } })),
+  );
+}
+
 export function useRejectSuggestion() {
   return useSuggestionAction((id: number) =>
     unwrap(

@@ -8,9 +8,16 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, type Change, type MetadataValues, type Suggestion } from "@/api/client";
+import {
+  type AcceptManyResult,
+  ApiError,
+  type Change,
+  type MetadataValues,
+  type Suggestion,
+} from "@/api/client";
 import {
   useAcceptSuggestion,
+  useAcceptSuggestions,
   useLookups,
   useReextractSuggestion,
   useRejectSuggestion,
@@ -31,23 +38,49 @@ export function ReviewPage() {
   const { data: suggestions, error, isPending } = useSuggestions();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [lastChange, setLastChange] = useState<Change | null>(null);
+  // Letzte Übernahme – bei der Sammel-Übernahme mehrere, „Rückgängig“ nimmt alle zurück
+  const [lastChanges, setLastChanges] = useState<Change[]>([]);
+  const [failed, setFailed] = useState<AcceptManyResult["failed"]>([]);
+  const [marked, setMarked] = useState<ReadonlySet<number>>(new Set());
   const revert = useRevertChange();
-  const undo = useCallback(() => {
-    if (!lastChange || revert.isPending) return;
-    revert.mutate(
-      { id: lastChange.id },
+  const acceptMany = useAcceptSuggestions();
+  const undo = useCallback(async () => {
+    if (!lastChanges.length || revert.isPending) return;
+    for (const [n, change] of lastChanges.entries()) {
+      try {
+        await revert.mutateAsync({ id: change.id });
+      } catch {
+        setLastChanges(lastChanges.slice(n)); // der Rest bleibt rückgängig zu machen
+        return;
+      }
+    }
+    setSelectedId(null);
+    lastIndex.current = 0;
+    setLastChanges([]);
+  }, [lastChanges, revert]);
+
+  const list = suggestions ?? [];
+  const markedItems = list.filter((s) => marked.has(s.id));
+  const toggle = useCallback((id: number) => {
+    setMarked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
+  const acceptMarked = () => {
+    if (!markedItems.length || acceptMany.isPending) return;
+    acceptMany.mutate(
+      markedItems.map((s) => s.id),
       {
-        onSuccess: () => {
-          setSelectedId(null);
-          lastIndex.current = 0;
-          setLastChange(null);
+        onSuccess: (result) => {
+          setLastChanges(result.accepted);
+          setFailed(result.failed);
+          setMarked(new Set(result.failed.map((f) => f.suggestion_id)));
         },
       },
     );
-  }, [lastChange, revert]);
-
-  const list = suggestions ?? [];
+  };
   const index = Math.max(
     0,
     list.findIndex((s) => s.id === selectedId),
@@ -92,10 +125,14 @@ export function ReviewPage() {
         }
       />
       {showHelp && <KeyboardHelp />}
-      {lastChange && (
+      {lastChanges.length > 0 && (
         <Alert tone="success" className="mb-4 flex-wrap justify-between">
-          <span>„{lastChange.after.title}“ übernommen.</span>
-          <Button onClick={undo} disabled={revert.isPending}>
+          <span>
+            {lastChanges.length === 1
+              ? `„${lastChanges[0]?.after.title}“ übernommen.`
+              : `${lastChanges.length} Vorschläge übernommen.`}
+          </span>
+          <Button onClick={() => void undo()} disabled={revert.isPending}>
             Rückgängig <kbd className="ml-1 text-xs opacity-70">Z</kbd>
           </Button>
         </Alert>
@@ -105,12 +142,49 @@ export function ReviewPage() {
           {revert.error.message}
         </Alert>
       )}
+      {failed.length > 0 && (
+        <Alert tone="warning" className="mb-4 flex-col">
+          <span>
+            {failed.length === 1 ? "1 Vorschlag" : `${failed.length} Vorschläge`} nicht übernommen,
+            sie bleiben markiert:
+          </span>
+          <ul className="list-disc pl-5">
+            {failed.map((f) => (
+              <li key={f.suggestion_id}>
+                {titleOf(list.find((s) => s.id === f.suggestion_id)) ??
+                  `Vorschlag ${f.suggestion_id}`}
+                : {f.message}
+              </li>
+            ))}
+          </ul>
+        </Alert>
+      )}
+      {acceptMany.error && (
+        <Alert tone="danger" className="mb-4">
+          {acceptMany.error.message}
+        </Alert>
+      )}
       {error && <Alert tone="danger">{error.message}</Alert>}
       {isPending && <p className="text-sm text-zinc-500">Lädt …</p>}
       {suggestions && list.length === 0 && <EmptyState />}
       {current && (
+        <BulkBar
+          items={list}
+          marked={markedItems}
+          busy={acceptMany.isPending}
+          onMarkAll={(all) => setMarked(new Set(all ? list.map((s) => s.id) : []))}
+          onAccept={acceptMarked}
+        />
+      )}
+      {current && (
         <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)_24rem]">
-          <SuggestionList items={list} selected={current.id} onSelect={setSelectedId} />
+          <SuggestionList
+            items={list}
+            selected={current.id}
+            marked={marked}
+            onSelect={setSelectedId}
+            onToggle={toggle}
+          />
           <Preview documentId={current.document_id} />
           <Review
             key={current.id}
@@ -119,8 +193,13 @@ export function ReviewPage() {
             onPrevious={() => go(-1)}
             onNext={() => go(1)}
             onToggleHelp={() => setShowHelp((v) => !v)}
-            onAccepted={setLastChange}
-            onUndo={undo}
+            marked={marked.has(current.id)}
+            onToggleMark={() => toggle(current.id)}
+            onAccepted={(change) => {
+              setLastChanges([change]);
+              setFailed([]);
+            }}
+            onUndo={() => void undo()}
           />
         </div>
       )}
@@ -128,37 +207,106 @@ export function ReviewPage() {
   );
 }
 
+const titleOf = (item: Suggestion | undefined) =>
+  item && (item.proposed.title || item.current.title);
+
+const warningsOf = (item: Suggestion) =>
+  Object.values(item.checks).filter((c) => c.status === "warn").length;
+
+function BulkBar({
+  items,
+  marked,
+  busy,
+  onMarkAll,
+  onAccept,
+}: {
+  items: Suggestion[];
+  marked: Suggestion[];
+  busy: boolean;
+  onMarkAll: (all: boolean) => void;
+  onAccept: () => void;
+}) {
+  const all = useRef<HTMLInputElement>(null);
+  const some = marked.length > 0 && marked.length < items.length;
+  useEffect(() => {
+    if (all.current) all.current.indeterminate = some;
+  }, [some]);
+  const withWarnings = marked.filter((s) => warningsOf(s) > 0).length;
+  return (
+    <Card className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input
+          ref={all}
+          type="checkbox"
+          className="size-4 accent-brand-600"
+          checked={marked.length > 0 && marked.length === items.length}
+          onChange={(e) => onMarkAll(e.target.checked)}
+        />
+        Alle markieren
+      </label>
+      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+        {marked.length
+          ? `${marked.length} markiert${withWarnings ? `, davon ${withWarnings} mit Hinweisen` : ""} · werden unverändert übernommen`
+          : "Markieren mit X oder dem Kästchen in der Liste"}
+      </span>
+      <Button
+        variant="primary"
+        className="ml-auto"
+        onClick={onAccept}
+        disabled={busy || marked.length === 0}
+      >
+        {busy
+          ? "Übernimmt …"
+          : marked.length === 0
+            ? "Markierte übernehmen"
+            : marked.length === 1
+              ? "1 markierten übernehmen"
+              : `${marked.length} markierte übernehmen`}
+      </Button>
+    </Card>
+  );
+}
+
 function SuggestionList({
   items,
   selected,
+  marked,
   onSelect,
+  onToggle,
 }: {
   items: Suggestion[];
   selected: number;
+  marked: ReadonlySet<number>;
   onSelect: (id: number) => void;
+  onToggle: (id: number) => void;
 }) {
   return (
     <nav aria-label="Offene Vorschläge" className="hidden max-h-[75vh] overflow-y-auto lg:block">
       <ul className="space-y-1">
         {items.map((item) => {
-          const warnings = Object.values(item.checks).filter((c) => c.status === "warn").length;
+          const warnings = warningsOf(item);
           return (
-            <li key={item.id}>
+            <li key={item.id} className="flex items-start gap-1">
+              <input
+                type="checkbox"
+                className="mt-2.5 size-4 shrink-0 accent-brand-600"
+                checked={marked.has(item.id)}
+                onChange={() => onToggle(item.id)}
+                aria-label={`„${titleOf(item)}“ markieren`}
+              />
               <button
                 type="button"
                 onClick={() => onSelect(item.id)}
                 aria-current={item.id === selected || undefined}
                 className={cn(
-                  "w-full rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                  "min-w-0 flex-1 rounded-lg px-3 py-2 text-left text-sm transition-colors",
                   item.id === selected
                     ? "bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-100"
                     : "hover:bg-zinc-100 dark:hover:bg-zinc-800",
                 )}
               >
                 <span className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">
-                    {item.proposed.title || item.current.title}
-                  </span>
+                  <span className="truncate font-medium">{titleOf(item)}</span>
                   {warnings > 0 && (
                     <AlertTriangle
                       className="size-3.5 shrink-0 text-amber-500"
@@ -197,6 +345,8 @@ function Review({
   onPrevious,
   onNext,
   onToggleHelp,
+  marked,
+  onToggleMark,
   onAccepted,
   onUndo,
 }: {
@@ -205,6 +355,8 @@ function Review({
   onPrevious: () => void;
   onNext: () => void;
   onToggleHelp: () => void;
+  marked: boolean;
+  onToggleMark: () => void;
   onAccepted: (change: Change) => void;
   onUndo: () => void;
 }) {
@@ -243,6 +395,7 @@ function Review({
     },
     onHelp: onToggleHelp,
     onUndo,
+    onMark: onToggleMark,
   });
 
   const changedSince = detail.data?.changed_since ?? [];
@@ -261,7 +414,16 @@ function Review({
               ` · ${suggestion.lesson_ids.length === 1 ? "1 frühere Korrektur" : `${suggestion.lesson_ids.length} frühere Korrekturen`} berücksichtigt`}
           </p>
         </div>
-        <div className="flex">
+        <div className="flex items-center">
+          <label className="mr-2 flex items-center gap-1.5 text-xs text-zinc-500 lg:hidden dark:text-zinc-400">
+            <input
+              type="checkbox"
+              className="size-4 accent-brand-600"
+              checked={marked}
+              onChange={onToggleMark}
+            />
+            markiert
+          </label>
           <Button onClick={onPrevious} aria-label="Vorheriger Vorschlag">
             <ChevronLeft className="size-4" aria-hidden="true" />
           </Button>
@@ -348,9 +510,11 @@ type KeyHandlers = {
   onEdit: () => void;
   onHelp: () => void;
   onUndo: () => void;
+  onMark: () => void;
 };
 
-/** J/K blättern, Enter übernimmt, R verwirft, E springt ins erste unsichere Feld, Z rückgängig. */
+/** J/K blättern, Enter übernimmt, R verwirft, E springt ins erste unsichere Feld, Z rückgängig,
+ * X markiert. */
 export function useReviewKeys(handlers: KeyHandlers) {
   const ref = useRef(handlers);
   ref.current = handlers;
@@ -372,6 +536,7 @@ export function useReviewKeys(handlers: KeyHandlers) {
           r: ref.current.onReject,
           e: ref.current.onEdit,
           z: ref.current.onUndo,
+          x: ref.current.onMark,
           "?": ref.current.onHelp,
           Enter: ref.current.onAccept,
         } as Record<string, (() => void) | undefined>
@@ -392,6 +557,7 @@ function KeyboardHelp() {
     ["J / K", "Nächster / vorheriger Vorschlag"],
     ["R", "Verwerfen"],
     ["E", "Ins erste unsichere Feld springen"],
+    ["X", "Markieren für die Sammel-Übernahme"],
     ["Z", "Letzte Übernahme rückgängig"],
     ["Esc", "Feld verlassen"],
     ["?", "Diese Hilfe"],

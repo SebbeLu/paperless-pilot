@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from paperless_pilot.api.deps import ContainerDep
-from paperless_pilot.application.review import SuggestionDetail
+from paperless_pilot.application.review import AcceptManyResult, SuggestionDetail
 from paperless_pilot.domain.changes import Change
 from paperless_pilot.domain.suggestions import MetadataValues, Suggestion, SuggestionStatus
 
@@ -12,6 +12,10 @@ router = APIRouter(prefix="/suggestions", tags=["suggestions"])
 class AcceptRequest(BaseModel):
     values: MetadataValues
     force: bool = False
+
+
+class AcceptManyRequest(BaseModel):
+    ids: list[int]
 
 
 class RejectRequest(BaseModel):
@@ -32,6 +36,12 @@ async def list_suggestions(
 async def get_suggestion(suggestion_id: int, container: ContainerDep) -> SuggestionDetail:
     """Vorschlag mit dem aktuellen Stand des Dokuments in Paperless."""
     return await container.review.detail(suggestion_id)
+
+
+@router.post("/accept")
+async def accept_many(request: AcceptManyRequest, container: ContainerDep) -> AcceptManyResult:
+    """Markierte Vorschläge unverändert übernehmen – ohne „Trotzdem“ bei Konflikten."""
+    return await container.review.accept_many(request.ids)
 
 
 @router.post("/{suggestion_id}/accept")

@@ -161,7 +161,7 @@ Leitlinien: selbsterklärend, mit der Tastatur bedienbar, sofortige Rückmeldung
 |---|---|
 | 0 – Fundament | Repository, CI, Grundgerüst (Backend, Frontend, Container), Paperless- und Ollama-Adapter mit Tests |
 | 1 – Kernnutzen | Worker-Pool mit Freigaben (Zeitfenster, HA-Leerlauf), Queue, Klassifikation und Extraktion, Titel, Prüfliste, Änderungsprotokoll mit Undo, Taxonomie-Editor, Übersicht – Details: [phase-1.md](phase-1.md) |
-| 2 – Ordnung | Aufräumen, Felder je Dokumenttyp und Titel-Vorlagen, Speicherpfade, Vision-OCR, gelerntes Vertrauen, Benchmark, Wake-on-LAN |
+| 2 – Ordnung | Aufräumen, Felder je Dokumenttyp und Titel-Vorlagen, Speicherpfade, Vision-OCR ([phase-2-vision-ocr.md](phase-2-vision-ocr.md)), gelerntes Vertrauen, Benchmark, Wake-on-LAN |
 | 3 – Mehrwert | Fristen an HA, Dubletten, Steuer-Export, semantische Suche bzw. Chat, Trennung mehrerer Dokumente in einem Scan |
 
 ## 14. Offene Punkte

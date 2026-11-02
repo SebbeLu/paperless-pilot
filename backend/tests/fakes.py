@@ -1,6 +1,6 @@
 """Attrappen für die Ports – für Tests des Kerns ohne Netzwerk."""
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -20,6 +20,7 @@ from paperless_pilot.domain.models import (
     PaperlessInfo,
     Tag,
 )
+from paperless_pilot.domain.transcription import RenderedPage
 
 
 class FakeDocumentRepository:
@@ -147,7 +148,7 @@ class FakeLlmHost:
         name: str = "Mac",
         *,
         probe: HostProbe | None = None,
-        replies: Sequence[BaseModel | dict[str, Any] | PilotError] = (),
+        replies: Sequence[BaseModel | dict[str, Any] | str | PilotError] = (),
         error: PilotError | None = None,
     ) -> None:
         self._name = name
@@ -159,6 +160,8 @@ class FakeLlmHost:
         self.prompts: list[str] = []
         self.systems: list[str | None] = []
         self.models: list[str] = []
+        self.images: list[int] = []  # Anzahl Bilder je Aufruf
+        self.stops: list[Callable[[str], bool] | None] = []
 
     @property
     def name(self) -> str:
@@ -190,5 +193,39 @@ class FakeLlmHost:
         reply = self.replies.pop(0)
         if isinstance(reply, PilotError):
             raise reply
+        assert not isinstance(reply, str), "Freitext-Antwort für strukturierte Ausgabe"
         data = reply.model_dump() if isinstance(reply, BaseModel) else reply
         return output_type.model_validate(data)
+
+    async def generate_text(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        images: Sequence[bytes] = (),
+        max_tokens: int,
+        stop: Callable[[str], bool] | None = None,
+    ) -> str:
+        if self.error is not None:
+            raise self.error
+        self.prompts.append(prompt)
+        self.models.append(model)
+        self.images.append(len(images))
+        self.stops.append(stop)
+        reply = self.replies.pop(0)
+        if isinstance(reply, PilotError):
+            raise reply
+        assert isinstance(reply, str), "strukturierte Antwort für Freitext"
+        return reply
+
+
+class FakePageRenderer:
+    """Liefert vorgegebene Seiten; merkt sich, was gerendert werden sollte."""
+
+    def __init__(self, pages: Sequence[RenderedPage] = (RenderedPage(png=b"page"),)) -> None:
+        self.pages = list(pages)
+        self.files: list[tuple[DocumentFile, int]] = []
+
+    async def render(self, file: DocumentFile, max_pages: int) -> list[RenderedPage]:
+        self.files.append((file, max_pages))
+        return self.pages[:max_pages]

@@ -1,4 +1,4 @@
-"""Kommandozeile: `paperless-pilot` startet den Dienst, `extract` und `ocr-score` testen."""
+"""Kommandozeile: `paperless-pilot` startet den Dienst, die übrigen Befehle testen nur."""
 
 import argparse
 import asyncio
@@ -7,9 +7,11 @@ import logging
 
 import uvicorn
 
-from paperless_pilot.api.container import build_container, real_adapters
+from paperless_pilot.api.container import Adapters, build_container, real_adapters
+from paperless_pilot.application.transcription import TranscriptionService
 from paperless_pilot.config import Settings
 from paperless_pilot.domain.ocr_quality import OcrQuality, assess_ocr
+from paperless_pilot.domain.ports import LlmHost
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -29,6 +31,13 @@ def main(argv: list[str] | None = None) -> None:
     score.add_argument(
         "--threshold", type=float, help="Schwelle (Standard: PILOT_OCR_QUALITY_THRESHOLD)"
     )
+    transcribe = commands.add_parser(
+        "transcribe", help="Seiten vom Bild abschreiben lassen (Vision-OCR) – schreibt nichts"
+    )
+    transcribe.add_argument("document_ids", type=int, nargs="+")
+    transcribe.add_argument("--host", help="Name des Ollama-Rechners (Standard: erster)")
+    transcribe.add_argument("--model", help="Modell (Standard: PILOT_VISION_MODEL)")
+    transcribe.add_argument("--max-pages", type=int, help="Standard: PILOT_VISION_MAX_PAGES")
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -37,6 +46,9 @@ def main(argv: list[str] | None = None) -> None:
     settings = Settings()  # Pflichtwerte kommen aus der Umgebung
     if args.command == "extract":
         asyncio.run(_extract(settings, args.document_ids, args.host, args.model))
+        return
+    if args.command == "transcribe":
+        asyncio.run(_transcribe(settings, args.document_ids, args.host, args.model, args.max_pages))
         return
     if args.command == "ocr-score":
         threshold = args.threshold or settings.ocr_quality_threshold
@@ -58,15 +70,53 @@ async def _extract(
         real_adapters(settings) as adapters,
         build_container(settings, adapters) as container,
     ):
-        hosts = [h for h in adapters.hosts if host_name in (None, h.name)]
-        if not hosts:
-            msg = f"Kein Ollama-Rechner {host_name or ''} konfiguriert"
-            raise SystemExit(msg)
+        host = _host(adapters, host_name)
         for document_id in document_ids:
             suggestion = await container.extraction.extract(
-                document_id, hosts[0], model or settings.extraction_model
+                document_id, host, model or settings.extraction_model
             )
             print(json.dumps(suggestion.model_dump(mode="json"), indent=2, ensure_ascii=False))
+
+
+async def _transcribe(
+    settings: Settings,
+    document_ids: list[int],
+    host_name: str | None,
+    model: str | None,
+    max_pages: int | None,
+) -> None:
+    async with real_adapters(settings) as adapters:
+        host = _host(adapters, host_name)
+        service = TranscriptionService(
+            adapters.paperless,
+            adapters.pages,
+            adapters.clock,
+            max_pages=settings.vision_max_pages,
+            max_tokens=settings.vision_max_tokens,
+        )
+        for document_id in document_ids:
+            result = await service.transcribe(
+                document_id, host, model or settings.vision_model, max_pages=max_pages
+            )
+            before, after = result.quality_before, result.quality_after
+            print(f"=== Dokument {document_id}")
+            print(
+                f"{result.pages} Seite(n) in {result.duration_seconds:.0f} s · "
+                f"Qualität {before.score:.2f} → {after.score:.2f}"
+                + (f" · aufgerichtet: {result.rotated_pages}" if result.rotated_pages else "")
+            )
+            for warning in result.warnings:
+                print(f"! {warning.message}")
+            print(result.text)
+            print()
+
+
+def _host(adapters: Adapters, host_name: str | None) -> LlmHost:
+    hosts = [h for h in adapters.hosts if host_name in (None, h.name)]
+    if not hosts:
+        msg = f"Kein Ollama-Rechner {host_name or ''} konfiguriert"
+        raise SystemExit(msg)
+    return hosts[0]
 
 
 async def _ocr_score(settings: Settings, worst: int, threshold: float) -> None:

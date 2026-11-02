@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Response
 from pydantic import BaseModel
 
@@ -6,6 +8,9 @@ from paperless_pilot.application.review import ReextractDocumentsResult
 from paperless_pilot.domain.models import FileKind
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+# Die Originaldatei braucht nur der Dienst selbst (Vision-OCR), der Browser nicht
+type ViewKind = Literal["preview", "thumb"]
 
 
 class DocumentIdsRequest(BaseModel):
@@ -23,9 +28,9 @@ async def reextract(
 
 
 @router.get("/{document_id}/{kind}", response_class=Response)
-async def document_file(document_id: int, kind: FileKind, container: ContainerDep) -> Response:
+async def document_file(document_id: int, kind: ViewKind, container: ContainerDep) -> Response:
     """Vorschau (PDF) bzw. Miniaturbild aus Paperless – der Browser hat keinen Paperless-Token."""
-    file = await container.adapters.paperless.get_file(document_id, kind)
+    file = await container.adapters.paperless.get_file(document_id, FileKind(kind))
     return Response(
         content=file.content,
         media_type=file.media_type,

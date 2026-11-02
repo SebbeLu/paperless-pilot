@@ -1045,7 +1045,12 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/FileKind"
+              "enum": [
+                "preview",
+                "thumb"
+              ],
+              "type": "string",
+              "title": "Kind"
             }
           }
         ],
@@ -1447,14 +1452,6 @@
           "message"
         ],
         "title": "FieldCheck"
-      },
-      "FileKind": {
-        "type": "string",
-        "enum": [
-          "preview",
-          "thumb"
-        ],
-        "title": "FileKind"
       },
       "Group": {
         "type": "string",

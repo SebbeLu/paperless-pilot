@@ -14,7 +14,7 @@ from paperless_pilot.api.container import Adapters, build_container
 from paperless_pilot.config import Settings
 from tests.clock import FakeClock
 from tests.factories import CORRESPONDENTS, answer, document, taxonomy
-from tests.fakes import FakeDocumentRepository, FakeLlmHost
+from tests.fakes import FakeDocumentRepository, FakeLlmHost, FakePageRenderer
 
 
 @pytest.fixture
@@ -107,4 +107,28 @@ def test_ocr_score_lists_worst_documents_without_writing(
     assert "kein Text" in first
     assert second.split()[0] == "2"
     assert second.endswith("Ausweis")
+    assert paperless.patches == []
+
+
+@pytest.mark.usefixtures("env")
+def test_transcribe_prints_text_and_warnings_without_writing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    paperless = FakeDocumentRepository([document(5, content="‚ _‚„___„ ;$r", page_count=1)])
+    host = FakeLlmHost("Mac", replies=["IBAN DE89 3704 0044 0532 0130 01"])
+
+    @asynccontextmanager
+    async def fake_adapters(_settings: Settings) -> AsyncIterator[Adapters]:
+        yield Adapters(paperless=paperless, hosts=[host], pages=FakePageRenderer())
+
+    monkeypatch.setattr(entrypoint, "real_adapters", fake_adapters)
+
+    entrypoint.main(["transcribe", "5", "--model", "vision", "--max-pages", "3"])
+
+    out = capsys.readouterr().out
+    assert "=== Dokument 5" in out
+    assert "1 Seite(n) in 0 s · Qualität" in out
+    assert "! IBAN-Prüfziffer falsch" in out
+    assert out.rstrip().endswith("IBAN DE89 3704 0044 0532 0130 01")
+    assert host.models == ["vision"]
     assert paperless.patches == []

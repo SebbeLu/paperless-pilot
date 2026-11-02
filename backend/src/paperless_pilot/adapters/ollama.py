@@ -1,7 +1,9 @@
 """Adapter für einen Ollama-Server (https://github.com/ollama/ollama/blob/main/docs/api.md)."""
 
 import base64
-from collections.abc import Sequence
+import json
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import asynccontextmanager
 from typing import Any, Self
 
 import httpx
@@ -16,6 +18,10 @@ from paperless_pilot.domain.errors import (
 from paperless_pilot.domain.models import HostProbe, LlmModel
 
 type JsonObject = dict[str, Any]
+
+# Bild und Abschrift brauchen mehr Kontext als das Auslesen von Text
+TEXT_CONTEXT_LENGTH = 16384
+_STOP_CHECK_CHARS = 200  # so oft prüft ``stop``, ob abgebrochen werden soll
 
 
 class OllamaHost:
@@ -70,6 +76,48 @@ class OllamaHost:
             ),
         )
 
+    async def generate_text(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        images: Sequence[bytes] = (),
+        max_tokens: int,
+        stop: Callable[[str], bool] | None = None,
+    ) -> str:
+        """Freitext, etwa eine Abschrift.
+
+        Die Antwort kommt gestreamt: Meldet ``stop`` für den bisherigen Text True, etwa weil
+        sich das Modell wiederholt, wird abgebrochen. ``max_tokens`` ist die harte Grenze.
+        """
+        body = self._chat_body(
+            model, prompt, images, {"num_predict": max_tokens, "num_ctx": TEXT_CONTEXT_LENGTH}
+        )
+        body["stream"] = True
+        text = ""
+        async with (
+            self._guard(),
+            self._http.stream(
+                "POST", self._base.join("api/chat"), json=body, timeout=self._generate_timeout
+            ) as response,
+        ):
+            if response.status_code >= 400:
+                await response.aread()
+                self._raise_for(response)
+            checked = 0
+            async for line in response.aiter_lines():
+                if not line.strip():
+                    continue
+                chunk = json.loads(line)
+                text += chunk.get("message", {}).get("content", "")
+                if stop is not None and len(text) - checked >= _STOP_CHECK_CHARS:
+                    checked = len(text)
+                    if stop(text):
+                        break
+                if chunk.get("done"):
+                    break
+        return text
+
     async def generate_structured[T: BaseModel](
         self,
         *,
@@ -79,26 +127,8 @@ class OllamaHost:
         system: str | None = None,
         images: Sequence[bytes] = (),
     ) -> T:
-        user: JsonObject = {"role": "user", "content": prompt}
-        if images:
-            user["images"] = [base64.b64encode(img).decode("ascii") for img in images]
-        messages = [{"role": "system", "content": system}] if system else []
-        messages.append(user)
-
-        data = await self._request(
-            "POST",
-            "api/chat",
-            json={
-                "model": model,
-                "messages": messages,
-                "format": output_type.model_json_schema(),
-                "stream": False,
-                # Denkmodus aus: bei strukturierter Ausgabe kein Qualitätsgewinn, aber um ein
-                # Vielfaches langsamer. Modelle ohne Denkmodus ignorieren den Schalter.
-                "think": False,
-                "options": {"temperature": 0, "num_ctx": self._context_length},
-            },
-            request_timeout=self._generate_timeout,
+        data = await self._chat(
+            model, prompt, images, {}, system=system, output_format=output_type.model_json_schema()
         )
         raw = data.get("message", {}).get("content", "")
         try:
@@ -106,14 +136,64 @@ class OllamaHost:
         except ValidationError as exc:
             raise InvalidLlmOutputError(model, raw, str(exc)) from exc
 
+    async def _chat(
+        self,
+        model: str,
+        prompt: str,
+        images: Sequence[bytes],
+        options: JsonObject,
+        *,
+        system: str | None = None,
+        output_format: JsonObject | None = None,
+    ) -> JsonObject:
+        body = self._chat_body(model, prompt, images, options, system=system)
+        if output_format is not None:
+            body["format"] = output_format
+        return await self._request(
+            "POST", "api/chat", json=body, request_timeout=self._generate_timeout
+        )
+
+    def _chat_body(
+        self,
+        model: str,
+        prompt: str,
+        images: Sequence[bytes],
+        options: JsonObject,
+        *,
+        system: str | None = None,
+    ) -> JsonObject:
+        user: JsonObject = {"role": "user", "content": prompt}
+        if images:
+            user["images"] = [base64.b64encode(img).decode("ascii") for img in images]
+        messages = [{"role": "system", "content": system}] if system else []
+        messages.append(user)
+        return {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            # Denkmodus aus: bei strukturierter Ausgabe und Abschriften kein Qualitätsgewinn,
+            # aber um ein Vielfaches langsamer. Modelle ohne Denkmodus ignorieren den Schalter.
+            "think": False,
+            "options": {"temperature": 0, "num_ctx": self._context_length, **options},
+        }
+
     async def _request(
         self, method: str, path: str, *, request_timeout: float, json: JsonObject | None = None
     ) -> JsonObject:
-        service = f"Ollama ({self._name})"
-        try:
+        async with self._guard():
             response = await self._http.request(
                 method, self._base.join(path), json=json, timeout=request_timeout
             )
+        self._raise_for(response)
+        result: JsonObject = response.json()
+        return result
+
+    @asynccontextmanager
+    async def _guard(self) -> AsyncIterator[None]:
+        """Übersetzt Verbindungsfehler in die Fehler des Kerns."""
+        service = f"Ollama ({self._name})"
+        try:
+            yield
         except httpx.ConnectTimeout as exc:
             raise LlmHostUnavailableError(service, "keine Verbindung (Zeitüberschreitung)") from exc
         except httpx.TimeoutException as exc:
@@ -122,14 +202,13 @@ class OllamaHost:
         except httpx.TransportError as exc:
             raise LlmHostUnavailableError(service, str(exc) or type(exc).__name__) from exc
 
+    def _raise_for(self, response: httpx.Response) -> None:
         if response.status_code == 404:
             raise NotFoundError(_error_text(response))
         if response.status_code >= 400:
             raise ServiceUnavailableError(
-                service, f"HTTP {response.status_code}: {_error_text(response)}"
+                f"Ollama ({self._name})", f"HTTP {response.status_code}: {_error_text(response)}"
             )
-        result: JsonObject = response.json()
-        return result
 
 
 def _error_text(response: httpx.Response) -> str:

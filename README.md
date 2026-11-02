@@ -78,6 +78,8 @@ docker run -d --name paperless-pilot -p 8080:8080 -v /mnt/user/appdata/paperless
 | `PILOT_OLLAMA_HOSTS` | `[]` | JSON-Liste `[{"name": …, "url": …, "model": …}]`; `model` optional je Rechner |
 | `PILOT_EXTRACTION_MODEL` | `gemma4:26b` | Standardmodell fürs Auslesen |
 | `PILOT_OCR_QUALITY_THRESHOLD` | `0.68` | darunter gilt der OCR-Text als schlecht; `paperless-pilot ocr-score` zeigt die Verteilung im eigenen Bestand |
+| `PILOT_VISION_MODEL` | `gemma4:26b` | Modell fürs Abschreiben vom Bild (muss Bilder verstehen) |
+| `PILOT_VISION_MAX_PAGES` | `8` | höchstens so viele Seiten je Dokument abschreiben |
 | `PILOT_HA_URL` | – | Home Assistant (optional) |
 | `PILOT_HA_TOKEN` / `PILOT_HA_TOKEN_FILE` | – | Long-Lived Access Token für Home Assistant |
 | `PILOT_DATA_DIR` | `/data` | SQLite-Datenbank (Aufträge, Vorschläge, Verlauf, Taxonomie, Rechner-Regeln, gelernte Korrekturen) |
@@ -129,6 +131,13 @@ Ein Dokument probeweise auslesen, ohne etwas zu schreiben:
 
 ```bash
 cd backend && uv run paperless-pilot extract 123
+```
+
+Textqualität des Bestands bewerten und ein Dokument probeweise vom Bild abschreiben lassen (Vision-OCR), beides ohne zu schreiben:
+
+```bash
+cd backend && uv run paperless-pilot ocr-score
+cd backend && uv run paperless-pilot transcribe 123
 ```
 
 ### Prüfen

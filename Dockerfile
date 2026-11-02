@@ -22,7 +22,11 @@ RUN uv sync --locked --no-dev --no-editable
 FROM python:3.13-slim
 LABEL org.opencontainers.image.title="paperless-pilot" \
       org.opencontainers.image.description="Bearbeitet Paperless-ngx-Dokumente automatisch mit lokalen LLMs"
-RUN useradd --system --uid 10001 --create-home pilot \
+# tesseract nur für die Lageerkennung (OSD): Seiten auf dem Kopf vor der Vision-OCR aufrichten
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tesseract-ocr \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 10001 --create-home pilot \
  && mkdir -p /data && chown pilot /data
 WORKDIR /app
 COPY --from=backend /app/.venv /app/.venv

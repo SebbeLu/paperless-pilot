@@ -114,7 +114,11 @@ class PaperlessClient:
         return Correspondent(id=data["id"], name=data["name"], document_count=0)
 
     async def get_file(self, document_id: int, kind: FileKind) -> DocumentFile:
-        response = await self._request("GET", self._url(f"api/documents/{document_id}/{kind}/"))
+        if kind == FileKind.ORIGINAL:
+            url = self._url(f"api/documents/{document_id}/download/")
+            response = await self._request("GET", url, params={"original": "true"})
+        else:
+            response = await self._request("GET", self._url(f"api/documents/{document_id}/{kind}/"))
         return DocumentFile(
             content=response.content,
             media_type=response.headers.get("content-type", "application/octet-stream"),

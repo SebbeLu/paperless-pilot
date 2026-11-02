@@ -95,6 +95,59 @@ async def test_generate_structured_sends_schema_and_parses_reply(
     ]
 
 
+def stream_of(*parts: str) -> bytes:
+    lines = [{"message": {"role": "assistant", "content": part}, "done": False} for part in parts]
+    lines.append({"message": {"role": "assistant", "content": ""}, "done": True})
+    return "\n".join(json.dumps(line) for line in lines).encode() + b"\n"
+
+
+async def test_generate_text_streams_with_length_limit(
+    host: OllamaHost, api: respx.MockRouter
+) -> None:
+    route = api.post("/api/chat").respond(content=stream_of("Rechnung ", "Nr. 4711"))
+
+    text = await host.generate_text(
+        model="gemma4:26b", prompt="Abschreiben", images=[b"\x89PNG"], max_tokens=100
+    )
+
+    assert text == "Rechnung Nr. 4711"
+    body = json.loads(route.calls.last.request.content)
+    assert body["stream"] is True
+    assert "format" not in body
+    assert body["options"] == {"temperature": 0, "num_ctx": 16384, "num_predict": 100}
+    assert body["messages"][0]["images"] == [base64.b64encode(b"\x89PNG").decode()]
+
+
+async def test_generate_text_stops_early_when_asked(
+    host: OllamaHost, api: respx.MockRouter
+) -> None:
+    api.post("/api/chat").respond(content=stream_of(*(["x" * 100] * 10)))
+    seen: list[int] = []
+
+    def stop(text: str) -> bool:
+        seen.append(len(text))
+        return len(text) >= 400
+
+    text = await host.generate_text(model="m", prompt="p", max_tokens=10, stop=stop)
+
+    assert len(text) == 400
+    assert seen == [200, 400]
+
+
+async def test_generate_text_reports_http_errors(host: OllamaHost, api: respx.MockRouter) -> None:
+    api.post("/api/chat").respond(500, json={"error": "Modell zu groß"})
+
+    with pytest.raises(ServiceUnavailableError, match="HTTP 500: Modell zu groß"):
+        await host.generate_text(model="m", prompt="p", max_tokens=10)
+
+
+async def test_generate_text_connection_errors(host: OllamaHost, api: respx.MockRouter) -> None:
+    api.post("/api/chat").mock(side_effect=httpx.ConnectError("weg"))
+
+    with pytest.raises(LlmHostUnavailableError):
+        await host.generate_text(model="m", prompt="p", max_tokens=10)
+
+
 async def test_generate_without_system_and_images(host: OllamaHost, api: respx.MockRouter) -> None:
     route = api.post("/api/chat").respond(json=chat_reply('{"correspondent": "X", "amount": 1}'))
 

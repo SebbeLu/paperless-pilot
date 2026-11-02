@@ -7,7 +7,7 @@ Alle Namen und Inhalte sind frei erfunden.
 import asyncio
 import json
 import re
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
 from importlib import resources
@@ -199,6 +199,18 @@ class DemoLlmHost:
 
     async def probe(self) -> HostProbe:
         return HostProbe(version="demo", models=(LlmModel(name=DEMO_MODEL, size_bytes=0),))
+
+    async def generate_text(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        images: Sequence[bytes] = (),
+        max_tokens: int,
+        stop: Callable[[str], bool] | None = None,
+    ) -> str:
+        await asyncio.sleep(self._delay)
+        return "Demo-Abschrift: Dieser Text wurde vom Bild abgeschrieben."
 
     async def generate_structured[T: BaseModel](
         self,

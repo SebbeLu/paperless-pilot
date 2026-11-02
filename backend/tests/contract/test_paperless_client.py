@@ -12,7 +12,7 @@ from paperless_pilot.domain.errors import (
     NotFoundError,
     ServiceUnavailableError,
 )
-from paperless_pilot.domain.models import CustomFieldValue, DocumentPatch, FileKind
+from paperless_pilot.domain.models import CustomFieldValue, DocumentFile, DocumentPatch, FileKind
 from tests.contract import paperless_payloads as p
 
 TOKEN = "test-token"  # noqa: S105
@@ -256,6 +256,19 @@ async def test_get_file_passes_content_and_type(
 
     assert file.content == b"%PDF"
     assert file.media_type == media
+
+
+async def test_get_original_file_downloads_unprocessed_upload(
+    client: PaperlessClient, api: respx.MockRouter
+) -> None:
+    route = api.get("/api/documents/1/download/", params={"original": "true"}).respond(
+        content=b"\xff\xd8", headers={"content-type": "image/jpeg"}
+    )
+
+    file = await client.get_file(1, FileKind.ORIGINAL)
+
+    assert route.called
+    assert file == DocumentFile(content=b"\xff\xd8", media_type="image/jpeg")
 
 
 async def test_document_modified_is_parsed(client: PaperlessClient, api: respx.MockRouter) -> None:

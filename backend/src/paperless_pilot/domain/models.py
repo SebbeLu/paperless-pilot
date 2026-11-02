@@ -88,6 +88,7 @@ class HostProbe(_Frozen):
 class FileKind(StrEnum):
     PREVIEW = "preview"
     THUMB = "thumb"
+    ORIGINAL = "original"  # hochgeladene Datei, ohne Textebene von Paperless
 
 
 class DocumentFile(_Frozen):

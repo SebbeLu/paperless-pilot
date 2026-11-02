@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     extraction_model: str = "gemma4:26b"
     # Darunter gilt der OCR-Text als schlecht (0–1, siehe `paperless-pilot ocr-score`)
     ocr_quality_threshold: float = 0.68
+    # Vision-OCR: Modell, Auflösung beim Rendern, längste Bildseite, Seiten je Dokument
+    vision_model: str = "gemma4:26b"
+    vision_dpi: int = 200
+    vision_max_side: int = 2000
+    vision_max_pages: int = 8
+    vision_max_tokens: int = 4096  # je Seite; kappt Endlosschleifen des Modells
 
     # Home Assistant (optional): Leerlauf- und Sperr-Entitäten für die Rechner-Freigabe
     ha_url: HttpUrl | None = None

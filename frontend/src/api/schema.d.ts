@@ -686,11 +686,6 @@ export interface components {
             /** Evidence */
             evidence?: string | null;
         };
-        /**
-         * FileKind
-         * @enum {string}
-         */
-        FileKind: "preview" | "thumb";
         /** @enum {string} */
         Group: "document_types" | "persons" | "areas" | "status";
         /** HTTPValidationError */
@@ -2006,7 +2001,7 @@ export interface operations {
             header?: never;
             path: {
                 document_id: number;
-                kind: components["schemas"]["FileKind"];
+                kind: "preview" | "thumb";
             };
             cookie?: never;
         };

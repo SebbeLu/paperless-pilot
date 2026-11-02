@@ -1,6 +1,6 @@
 # Phase 2 – Vision-OCR: Plan
 
-Stand: 2026-11-02 · Status: Schritt 2.1 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
+Stand: 2026-11-02 · Status: Schritte 2.1 und 2.2 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
 
 ## 1. Ziel
 
@@ -178,3 +178,44 @@ Unter 0.68 liegen **60 Dokumente**. Das passt zu den rund 80 aus der ersten Best
 **Grenzbereich:** Gehaltsabrechnungen (viele Tabellen und Kürzel) liegen bei 0.68–0.73, ausländische Kassenbons um 0.64. Daher der Vorschlag **0.68**: Er fängt die Seiten auf dem Kopf und lässt die Gehaltsabrechnungen in Ruhe. Ein ausländischer Bon wird zwar abgeschrieben, sein Text bleibt aber nur ein Vorschlag.
 
 **Für Schritt 2.2:** Prüfen, ob das Vision-Modell auf dem Kopf stehende Seiten selbst richtig liest. Sonst wird die Seite vor dem Rendern gedreht.
+
+### Schritt 2.2 – Abschreiben (2026-11-02)
+
+- `PageRenderer` rendert PDFs mit `pypdfium2`, liest Bilder und mehrseitige TIFFs mit `Pillow` und verkleinert auf 2000 px.
+- `TranscriptionService` lädt die Originaldatei, schreibt jede Seite einzeln ab und wendet die Schutzregeln an.
+- `paperless-pilot transcribe <id>` zeigt Text, Qualität vorher → nachher, Dauer und Warnungen, ohne zu schreiben.
+- Die Vorschau-Schnittstelle bleibt auf Vorschau und Miniatur beschränkt; die Originaldatei holt nur der Dienst selbst.
+
+**Seiten aufrichten:**
+- Das Vision-Modell liest Seiten, die auf dem Kopf stehen, zwar, erfindet dabei aber mehr, etwa einen falschen Fachbereich im Briefkopf.
+- Ob eine Seite auf dem Kopf steht, erkennt das Modell selbst nicht zuverlässig.
+- Deshalb fragt der Dienst Tesseract (nur Lageerkennung, `--psm 0`). Die Seite wird nur gedreht, wenn Tesseract sicher ist und die gedrehte Seite danach auch für Tesseract aufrecht steht. Gefaltete Blätter, deren eine Hälfte auf dem Kopf steht, bleiben so unverändert.
+- Das Container-Image enthält dafür `tesseract-ocr`. Fehlt Tesseract, etwa bei der Entwicklung, wird nicht gedreht.
+
+**Probelauf an 10 echten Dokumenten** (gemma4:26b, Mac M4 Pro), je eines pro Fehlerart:
+
+| Art | Seiten | Qualität vorher → nachher | Dauer |
+|---|---|---|---|
+| Ausweis | 2 | 0.63 → 0.82 | 14 s |
+| Brief mit Seiten auf dem Kopf | 8 | 0.64 → 0.91 | 110 s |
+| gefaltetes Zertifikat | 1 | 0.67 → 0.96 | 12 s |
+| kaputte Zeichentabelle | 6 | 0.38 → 0.95 | 129 s |
+| fremde Zeichen | 8 | 0.24 → 0.97 | 114 s |
+| gesperrte Schrift | 2 | 0.29 → 0.80 | 22 s |
+| fast leere Textebene | 1 | 0.00 → 0.94 | 16 s |
+| Kassenbon (ausländisch) | 2 | 0.52 → 0.71 | 18 s |
+| Bescheinigung | 1 | 0.50 → 0.92 | 13 s |
+| Rezept | 2 | 0.56 → 0.80 | 9 s |
+
+Alle zehn sind deutlich besser lesbar. Im Schnitt dauert das 10–20 s je Seite; die 60 Dokumente unter der Schwelle brauchen damit grob eine Stunde Rechenzeit auf dem Mac.
+
+**Was der Probelauf geändert hat:**
+
+| Beobachtung | Folge |
+|---|---|
+| Das Modell hängt sich in Schleifen auf („[Bild] [Bild] …“) und schreibt bis zur Längengrenze weiter: 95 s für eine Seite | Antwort wird gestreamt und abgebrochen, sobald sie sich wiederholt (`looks_stuck`): 95 s → 16 s, beim 8-Seiten-Brief 446 s → 110 s |
+| Wortgruppen-Schleifen innerhalb einer Zeile | werden auf drei Wiederholungen gekürzt; erst ab acht Wiederholungen, weil leere Tabellenzellen sich auch echt wiederholen |
+| Tabellen kommen als Markdown mit Trennzeilen (`\| :--- \|`) | Trennzeilen werden entfernt |
+| Verstümmelte Ausweiszeile mit 60 Zeichen wurde nicht als solche erkannt | jede Zeile ab 20 Zeichen aus `A–Z`, `0–9` und `<` gilt als MRZ und wird geprüft |
+| Zahlen, die das Modell gelesen hat, die Tesseract aber gar nicht erkannt hatte (z. B. eine Zugangsnummer auf dem Ausweis) | werden gemeldet – das ist gewollt: genau dort muss man hinsehen |
+| Bei Seiten auf dem Kopf meldet die Zahlen-Prüfung fast alles, weil der alte Text nur Zeichensalat enthält | bleibt vorerst so; in der Oberfläche (Schritt 2.5) werden die Zahlen im Vergleich markiert statt als lange Liste gezeigt |

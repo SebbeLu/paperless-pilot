@@ -3,7 +3,7 @@
 Adapter (Paperless, Ollama, …) implementieren diese Protokolle; Tests setzen Attrappen ein.
 """
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from typing import Protocol
 
 from pydantic import BaseModel
@@ -20,6 +20,7 @@ from paperless_pilot.domain.models import (
     PaperlessInfo,
     Tag,
 )
+from paperless_pilot.domain.transcription import RenderedPage
 
 
 class DocumentRepository(Protocol):
@@ -66,6 +67,22 @@ class LlmHost(Protocol):
         system: str | None = None,
         images: Sequence[bytes] = (),
     ) -> T: ...
+
+    async def generate_text(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        images: Sequence[bytes] = (),
+        max_tokens: int,
+        stop: Callable[[str], bool] | None = None,
+    ) -> str: ...
+
+
+class PageRenderer(Protocol):
+    """Macht aus einer Datei Seitenbilder fürs Vision-Modell."""
+
+    async def render(self, file: DocumentFile, max_pages: int) -> list[RenderedPage]: ...
 
 
 class AvailabilitySource(Protocol):

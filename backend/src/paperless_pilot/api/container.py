@@ -20,6 +20,7 @@ from paperless_pilot.adapters.db.repositories import (
 from paperless_pilot.adapters.demo import DEMO_MODEL
 from paperless_pilot.adapters.homeassistant import HomeAssistantClient
 from paperless_pilot.adapters.ollama import OllamaHost
+from paperless_pilot.adapters.pages import PageRenderer as PageRendererAdapter
 from paperless_pilot.adapters.paperless import PaperlessClient
 from paperless_pilot.application.events import EventBus
 from paperless_pilot.application.extraction import ExtractionService
@@ -33,7 +34,12 @@ from paperless_pilot.application.system_status import SystemStatusService
 from paperless_pilot.application.taxonomy import TaxonomyService
 from paperless_pilot.config import Settings
 from paperless_pilot.domain.clock import Clock, SystemClock
-from paperless_pilot.domain.ports import AvailabilitySource, DocumentRepository, LlmHost
+from paperless_pilot.domain.ports import (
+    AvailabilitySource,
+    DocumentRepository,
+    LlmHost,
+    PageRenderer,
+)
 
 HOST_PROBE_TIMEOUT_SECONDS = 3.0
 
@@ -46,6 +52,7 @@ class Adapters:
     hosts: Sequence[LlmHost]
     availability: AvailabilitySource | None = None
     clock: Clock = field(default_factory=SystemClock)
+    pages: PageRenderer = field(default_factory=PageRendererAdapter)
 
 
 @dataclass
@@ -95,7 +102,8 @@ async def real_adapters(settings: Settings) -> AsyncIterator[Adapters]:
                 str(settings.ha_url), token, timeout=settings.http_timeout_seconds
             )
             stack.push_async_callback(availability.aclose)
-        yield Adapters(paperless=paperless, hosts=hosts, availability=availability)
+        pages = PageRendererAdapter(dpi=settings.vision_dpi, max_side=settings.vision_max_side)
+        yield Adapters(paperless=paperless, hosts=hosts, availability=availability, pages=pages)
 
 
 @asynccontextmanager

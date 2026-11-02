@@ -26,6 +26,7 @@ from paperless_pilot.domain.errors import (
 from paperless_pilot.domain.jobs import Job, JobKind, retry_delay, should_retry
 from paperless_pilot.domain.models import DocumentPatch
 from paperless_pilot.domain.ports import DocumentRepository
+from paperless_pilot.domain.suggestions import TranscriptionSummary
 from paperless_pilot.domain.taxonomy import Taxonomy
 
 logger = logging.getLogger(__name__)
@@ -100,7 +101,7 @@ class JobProcessor:
         state = self._registry.state(host_name)
         duration: int | None = None
         try:
-            content = None
+            transcription = None
             if self._vision is not None:
                 document = await self._paperless.get_document(job.document_id)
                 if await self._vision.needs_transcription(document):
@@ -113,15 +114,25 @@ class JobProcessor:
                     )
                     await self._jobs.complete(job.id, self._clock.now())
                     return None
-                content = await self._vision.text_for(job.document_id)
+                transcription = await self._vision.usable(job.document_id)
             suggestion = await self._extraction.extract(
                 job.document_id,
                 self._registry.host(host_name),
                 state.model,
                 job_id=job.id,
                 short=job.attempts > 1,
-                content=content,
+                content=transcription.text if transcription else None,
             )
+            if transcription is not None:
+                # Die Abschrift wird mit dem Vorschlag geprüft und erst dann geschrieben
+                suggestion = suggestion.model_copy(
+                    update={
+                        "proposed": suggestion.proposed.model_copy(
+                            update={"content": transcription.text}
+                        ),
+                        "transcription": TranscriptionSummary.of(transcription),
+                    }
+                )
             duration = suggestion.duration_ms
             saved = await self._suggestions.add(suggestion, self._clock.now())
             taxonomy, _ = await self._taxonomy.get()

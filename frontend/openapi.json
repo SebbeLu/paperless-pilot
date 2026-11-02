@@ -521,7 +521,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ManyRequest"
+                "$ref": "#/components/schemas/AcceptManyRequest"
               }
             }
           },
@@ -1089,6 +1089,27 @@
   },
   "components": {
     "schemas": {
+      "AcceptManyRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ids"
+          },
+          "with_content": {
+            "type": "boolean",
+            "title": "With Content",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "AcceptManyRequest"
+      },
       "AcceptManyResult": {
         "properties": {
           "accepted": {
@@ -1350,6 +1371,17 @@
             },
             "type": "array",
             "title": "Tag Ids"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
           }
         },
         "type": "object",
@@ -2067,6 +2099,17 @@
               }
             ],
             "title": "Area Tag Id"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
           }
         },
         "type": "object",
@@ -2497,6 +2540,16 @@
             "title": "Lesson Ids",
             "default": []
           },
+          "transcription": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TranscriptionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -2794,6 +2847,89 @@
           "sync"
         ],
         "title": "TaxonomyState"
+      },
+      "TranscriptionSummary": {
+        "properties": {
+          "transcription_id": {
+            "type": "integer",
+            "title": "Transcription Id"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "rotated_pages": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Rotated Pages"
+          },
+          "skipped_pages": {
+            "type": "integer",
+            "title": "Skipped Pages"
+          },
+          "quality_before": {
+            "type": "number",
+            "title": "Quality Before"
+          },
+          "quality_after": {
+            "type": "number",
+            "title": "Quality After"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptionWarning"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "title": "Duration Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transcription_id",
+          "pages",
+          "rotated_pages",
+          "skipped_pages",
+          "quality_before",
+          "quality_after",
+          "warnings",
+          "model",
+          "host",
+          "duration_seconds"
+        ],
+        "title": "TranscriptionSummary",
+        "description": "Woher der vorgeschlagene Text stammt und was beim Prüfen auffiel."
+      },
+      "TranscriptionWarning": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "TranscriptionWarning"
       },
       "ValidationError": {
         "properties": {

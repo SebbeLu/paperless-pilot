@@ -543,6 +543,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptManyRequest */
+        AcceptManyRequest: {
+            /** Ids */
+            ids: number[];
+            /**
+             * With Content
+             * @default false
+             */
+            with_content: boolean;
+        };
         /** AcceptManyResult */
         AcceptManyResult: {
             /** Accepted */
@@ -647,6 +657,8 @@ export interface components {
             created: string;
             /** Tag Ids */
             tag_ids: number[];
+            /** Content */
+            content?: string | null;
         };
         /** EnqueueRequest */
         EnqueueRequest: {
@@ -938,6 +950,8 @@ export interface components {
             person_tag_ids: number[];
             /** Area Tag Id */
             area_tag_id?: number | null;
+            /** Content */
+            content?: string | null;
         };
         /**
          * NamedValues
@@ -1113,6 +1127,7 @@ export interface components {
              * @default []
              */
             lesson_ids: number[];
+            transcription?: components["schemas"]["TranscriptionSummary"] | null;
             /** Id */
             id: number;
             status: components["schemas"]["SuggestionStatus"];
@@ -1244,6 +1259,39 @@ export interface components {
             configured: boolean;
             /** Sync */
             sync: components["schemas"]["SyncItem"][];
+        };
+        /**
+         * TranscriptionSummary
+         * @description Woher der vorgeschlagene Text stammt und was beim Prüfen auffiel.
+         */
+        TranscriptionSummary: {
+            /** Transcription Id */
+            transcription_id: number;
+            /** Pages */
+            pages: number;
+            /** Rotated Pages */
+            rotated_pages: number[];
+            /** Skipped Pages */
+            skipped_pages: number;
+            /** Quality Before */
+            quality_before: number;
+            /** Quality After */
+            quality_after: number;
+            /** Warnings */
+            warnings: components["schemas"]["TranscriptionWarning"][];
+            /** Model */
+            model: string;
+            /** Host */
+            host: string;
+            /** Duration Seconds */
+            duration_seconds: number;
+        };
+        /** TranscriptionWarning */
+        TranscriptionWarning: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -1661,7 +1709,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ManyRequest"];
+                "application/json": components["schemas"]["AcceptManyRequest"];
             };
         };
         responses: {

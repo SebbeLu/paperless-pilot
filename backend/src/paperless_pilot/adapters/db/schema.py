@@ -85,6 +85,7 @@ suggestions = Table(
     Column("decided_at", UtcDateTime),
     Column("note", Text),
     Column("lesson_ids", JSON, nullable=False, default=list),
+    Column("transcription", JSON),
 )
 
 changes = Table(

@@ -15,6 +15,7 @@ FIELD_LABELS = {
     "correspondent_id": "Absender",
     "created": "Datum",
     "tag_ids": "Tags",
+    "content": "Inhalt",
 }
 
 
@@ -54,7 +55,7 @@ class HistoryService:
             raise ValidationFailedError(msg)
 
         document = await self._paperless.get_document(change.document_id)
-        current = DocumentState.of(document)
+        current = DocumentState.of(document, with_content=change.after.content is not None)
         if not force and (differs := current.differs_from(change.after)):
             labels = [FIELD_LABELS[f] for f in differs]
             msg = f"Das Dokument wurde seitdem in Paperless geändert ({', '.join(labels)})"

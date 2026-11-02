@@ -1,6 +1,6 @@
 # Phase 2 – Vision-OCR: Plan
 
-Stand: 2026-11-02 · Status: Schritte 2.1 bis 2.3 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
+Stand: 2026-11-02 · Status: Schritte 2.1 bis 2.4 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
 
 ## 1. Ziel
 
@@ -230,3 +230,14 @@ Alle zehn sind deutlich besser lesbar. Im Schnitt dauert das 10–20 s je Seite;
 - **Rechner:** Die Rechner-Überwachung fragt einmal je Rechner und Modell `/api/show` nach den Fähigkeiten und merkt sie sich. Aufträge „abschreiben“ bekommen nur Rechner, deren Vision-Modell (`PILOT_VISION_MODEL`) installiert ist und `vision` kann. Ist ein Rechner offline, gilt der letzte bekannte Stand.
 - **Zeit:** Ein Auftrag „abschreiben“ verlängert seine Lease auf `PILOT_LLM_TIMEOUT_SECONDS` × `PILOT_VISION_MAX_PAGES`, damit lange Dokumente nicht einem zweiten Rechner zufallen.
 - **Fehler:** Ist der Rechner weg, geht der Auftrag ohne Fehlversuch zurück in die Warteschlange. Lässt sich die Datei nicht lesen oder scheitert das Abschreiben endgültig, wird mit dem OCR-Text ausgelesen.
+
+### Schritt 2.4 – Text übernehmen und rückgängig machen (2026-11-02)
+
+- **Am Vorschlag:** `proposed.content` enthält die Abschrift. Dazu kommt `transcription` mit Herkunft (Modell, Rechner, Dauer), Seitenzahl, aufgerichteten und ausgelassenen Seiten, Qualität vorher/nachher und Warnungen (Migration 0004). Der bisherige Text wird nicht doppelt gespeichert, er steht in Paperless.
+- **Übernehmen:** Ist `content` in den übernommenen Werten gesetzt, schreibt der PATCH an Paperless den Inhalt mit. Der Verlauf hält dann den alten und den neuen Text fest. Fürs Lernen aus Korrekturen zählt der Text nicht.
+- **Rückgängig** schreibt den alten Text zurück. Hat jemand den Text inzwischen in Paperless geändert, meldet es einen Konflikt („Inhalt“), wie bei den übrigen Feldern.
+- **Nur auf ausdrücklichen Wunsch:**
+  - Die Prüfseite schickt den Text bis Schritt 2.5 nicht mit.
+  - Die Sammel-Übernahme schreibt ihn nur mit `with_content` und nur bei Abschriften ohne Warnungen.
+  - So landet kein Text in Paperless, den du nicht gesehen hast.
+- **Gegen echtes Paperless 3.2.1 geprüft (CI):** Die Originaldatei lässt sich laden, der Inhalt lässt sich per PATCH ersetzen, und die Volltextsuche findet danach den neuen Text.

@@ -215,6 +215,7 @@ _PATCH_FIELD_NAMES = {
     "tag_ids": "tags",
     "created": "created",
     "custom_fields": "custom_fields",
+    "content": "content",
 }
 
 

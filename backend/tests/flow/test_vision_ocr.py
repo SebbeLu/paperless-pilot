@@ -3,9 +3,14 @@ from datetime import timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from paperless_pilot.domain.errors import LlmHostUnavailableError, ValidationFailedError
+from paperless_pilot.domain.errors import (
+    ConflictError,
+    LlmHostUnavailableError,
+    ValidationFailedError,
+)
 from paperless_pilot.domain.jobs import JobKind, JobStatus
 from paperless_pilot.domain.models import HostProbe, LlmModel
+from paperless_pilot.domain.suggestions import Suggestion
 from tests.clock import FakeClock
 from tests.factories import INVOICE_TEXT, answer
 from tests.fakes import FakeLlmHost
@@ -171,3 +176,93 @@ async def test_missing_vision_model_means_no_vision(engine: AsyncEngine, clock: 
 
     assert not p.registry.vision_available()
     assert host.capability_calls == 0
+
+
+async def transcribed_suggestion(p: Pipeline, transcript: str = INVOICE_TEXT) -> Suggestion:
+    p.hosts[0].replies += [transcript, answer()]
+    await p.jobs.enqueue(1, JobKind.TRANSCRIBE, p.clock.now())
+    await p.scheduler.run_once("Mac")
+    await p.scheduler.run_once("Mac")
+    [suggestion] = await p.suggestions.list()
+    return suggestion
+
+
+async def test_suggestion_carries_transcription(p: Pipeline) -> None:
+    suggestion = await transcribed_suggestion(p)
+
+    assert suggestion.proposed.content == INVOICE_TEXT
+    assert suggestion.current.content is None
+    summary = suggestion.transcription
+    assert summary is not None
+    stored = await p.transcriptions.for_document(1)
+    assert stored is not None
+    assert summary.transcription_id == stored.id
+    assert summary.quality_after > summary.quality_before
+    assert summary.warnings == []
+    assert (summary.model, summary.host, summary.pages) == ("gemma4:26b", "Mac", 1)
+
+
+async def test_accept_writes_content_and_revert_restores_it(p: Pipeline) -> None:
+    suggestion = await transcribed_suggestion(p)
+
+    corrected = suggestion.proposed.model_copy(update={"title": "Bürostuhl Ergo"})
+
+    change = await p.review.accept(suggestion.id, corrected)
+
+    assert p.paperless.documents[1].content == INVOICE_TEXT
+    assert change.before.content == GARBAGE
+    assert change.after.content == INVOICE_TEXT
+    [lesson] = await p.lessons.list()
+    assert "content" not in lesson.model_dump_json()
+
+    await p.history.revert(change.id)
+
+    assert p.paperless.documents[1].content == GARBAGE
+    reopened = await p.suggestions.get(suggestion.id)
+    assert reopened is not None
+    assert reopened.proposed.content == INVOICE_TEXT
+
+
+async def test_accept_without_content_leaves_text_alone(p: Pipeline) -> None:
+    suggestion = await transcribed_suggestion(p)
+
+    change = await p.review.accept(
+        suggestion.id, suggestion.proposed.model_copy(update={"content": None})
+    )
+
+    assert p.paperless.documents[1].content == GARBAGE
+    assert change.before.content is None
+    assert "content" not in p.paperless.patches[-1][1].model_fields_set
+
+
+async def test_revert_detects_text_changed_in_paperless(p: Pipeline) -> None:
+    suggestion = await transcribed_suggestion(p)
+    change = await p.review.accept(suggestion.id, suggestion.proposed)
+    p.paperless.edit(1, content="von Hand korrigiert")
+
+    with pytest.raises(ConflictError, match="Inhalt"):
+        await p.history.revert(change.id)
+
+
+@pytest.mark.parametrize(
+    ("transcript", "written"),
+    [(INVOICE_TEXT, True), (INVOICE_TEXT + "\nIBAN DE89 3704 0044 0532 0130 01", False)],
+    ids=["ohne Warnung", "mit Warnung"],
+)
+async def test_accept_many_writes_content_only_without_warnings(
+    p: Pipeline, transcript: str, written: bool
+) -> None:
+    suggestion = await transcribed_suggestion(p, transcript)
+
+    result = await p.review.accept_many([suggestion.id], with_content=True)
+
+    assert len(result.accepted) == 1
+    assert (p.paperless.documents[1].content == transcript) is written
+
+
+async def test_accept_many_leaves_text_alone_unless_asked(p: Pipeline) -> None:
+    suggestion = await transcribed_suggestion(p)
+
+    await p.review.accept_many([suggestion.id])
+
+    assert p.paperless.documents[1].content == GARBAGE

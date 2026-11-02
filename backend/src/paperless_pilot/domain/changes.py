@@ -18,31 +18,37 @@ class DocumentState(BaseModel):
     correspondent_id: int | None
     created: date
     tag_ids: tuple[int, ...]
+    content: str | None = None  # nur, wenn die Änderung den OCR-Text betrifft
 
     @classmethod
-    def of(cls, document: Document) -> "DocumentState":
+    def of(cls, document: Document, *, with_content: bool = False) -> "DocumentState":
         return cls(
             title=document.title,
             document_type_id=document.document_type_id,
             correspondent_id=document.correspondent_id,
             created=document.created,
             tag_ids=tuple(sorted(document.tag_ids)),
+            content=document.content if with_content else None,
         )
 
     def to_patch(self) -> DocumentPatch:
-        return DocumentPatch(
+        patch = DocumentPatch(
             title=self.title,
             document_type_id=self.document_type_id,
             correspondent_id=self.correspondent_id,
             created=self.created,
             tag_ids=self.tag_ids,
         )
+        if self.content is None:
+            return patch
+        return patch.model_copy(update={"content": self.content})  # bleibt explizit gesetzt
 
     def differs_from(self, other: "DocumentState") -> list[str]:
         return [
             name
             for name in DocumentState.model_fields
-            if _normalized(getattr(self, name)) != _normalized(getattr(other, name))
+            if not (name == "content" and None in (self.content, other.content))
+            and _normalized(getattr(self, name)) != _normalized(getattr(other, name))
         ]
 
 

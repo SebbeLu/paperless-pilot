@@ -475,7 +475,12 @@ function Review({
 
   const doAccept = useCallback(
     (force = false) => {
-      if (!busy) accept.mutate({ id: suggestion.id, values, force }, { onSuccess: onAccepted });
+      // Den Text vom Bild schreibt erst das Kästchen im Abschnitt „Text“ (Vision-OCR, 2.5)
+      if (!busy)
+        accept.mutate(
+          { id: suggestion.id, values: { ...values, content: null }, force },
+          { onSuccess: onAccepted },
+        );
     },
     [accept, busy, suggestion.id, values, onAccepted],
   );

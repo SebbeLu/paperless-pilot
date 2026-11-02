@@ -132,12 +132,12 @@ class VisionOcr:
             return False
         return await self._jobs.last_status(document.id, JobKind.TRANSCRIBE) != JobStatus.FAILED
 
-    async def text_for(self, document_id: int) -> str | None:
+    async def usable(self, document_id: int) -> StoredTranscription | None:
         """Abschrift fürs Auslesen – nur, wenn sie besser ist als der OCR-Text."""
         stored = await self._transcriptions.for_document(document_id)
         if stored is None or stored.quality_after.score <= stored.quality_before.score:
             return None
-        return stored.text
+        return stored
 
     async def transcribe(self, job: Job, host_name: str) -> StoredTranscription:
         now = self._clock.now()

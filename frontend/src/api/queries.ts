@@ -181,7 +181,7 @@ export function useAcceptSuggestion() {
 
 export function useAcceptSuggestions() {
   return useSuggestionAction((ids: number[]) =>
-    unwrap(api.POST("/api/suggestions/accept", { body: { ids } })),
+    unwrap(api.POST("/api/suggestions/accept", { body: { ids, with_content: false } })),
   );
 }
 

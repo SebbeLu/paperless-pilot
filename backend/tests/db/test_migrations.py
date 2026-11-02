@@ -35,4 +35,5 @@ async def test_existing_suggestions_survive_upgrade(tmp_path: Path) -> None:
     [old] = await SuggestionRepository(engine).list(None)
     assert old.document_id == 5
     assert old.lesson_ids == []
+    assert old.transcription is None
     await engine.dispose()

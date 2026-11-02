@@ -166,6 +166,14 @@ async def test_update_sends_only_set_fields(client: PaperlessClient, api: respx.
     assert doc.title == "Neu"
 
 
+async def test_update_writes_content(client: PaperlessClient, api: respx.MockRouter) -> None:
+    route = api.patch("/api/documents/1/").respond(json=p.document(1))
+
+    await client.update_document(1, DocumentPatch(content="Rechnung Nr. 4711"))
+
+    assert json.loads(route.calls.last.request.content) == {"content": "Rechnung Nr. 4711"}
+
+
 async def test_empty_update_does_not_write(client: PaperlessClient, api: respx.MockRouter) -> None:
     patch_route = api.patch("/api/documents/1/")
     api.get("/api/documents/1/").respond(json=p.document(1))

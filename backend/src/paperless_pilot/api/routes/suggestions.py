@@ -23,6 +23,10 @@ class ManyRequest(BaseModel):
     ids: list[int]
 
 
+class AcceptManyRequest(ManyRequest):
+    with_content: bool = False  # Abschriften vom Bild ohne Warnungen mitschreiben
+
+
 class RejectRequest(BaseModel):
     reason: str | None = None
 
@@ -44,9 +48,9 @@ async def get_suggestion(suggestion_id: int, container: ContainerDep) -> Suggest
 
 
 @router.post("/accept")
-async def accept_many(request: ManyRequest, container: ContainerDep) -> AcceptManyResult:
+async def accept_many(request: AcceptManyRequest, container: ContainerDep) -> AcceptManyResult:
     """Markierte Vorschläge unverändert übernehmen – ohne „Trotzdem“ bei Konflikten."""
-    return await container.review.accept_many(request.ids)
+    return await container.review.accept_many(request.ids, with_content=request.with_content)
 
 
 @router.post("/{suggestion_id}/accept")

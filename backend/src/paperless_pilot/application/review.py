@@ -110,7 +110,11 @@ class ReviewService:
     async def accept(
         self, suggestion_id: int, values: MetadataValues, *, force: bool = False
     ) -> Change:
-        """Schreibt die (ggf. korrigierten) Werte nach Paperless und protokolliert die Änderung."""
+        """Schreibt die (ggf. korrigierten) Werte nach Paperless und protokolliert die Änderung.
+
+        Ist ``values.content`` gesetzt, ersetzt es den OCR-Text (Vision-OCR); der bisherige Text
+        steht dann im Verlauf und kommt mit „Rückgängig“ zurück.
+        """
         suggestion = await self._get_open(suggestion_id)
         document = await self._paperless.get_document(suggestion.document_id)
         taxonomy, _ = await self._taxonomy.get()
@@ -130,6 +134,9 @@ class ReviewService:
             created=values.created or document.created,
             tag_ids=await self._tags_after_accept(document, values, taxonomy),
         )
+        with_content = values.content is not None
+        if with_content:
+            patch = patch.model_copy(update={"content": values.content})
         updated = await self._paperless.update_document(document.id, patch)
         change = await self._changes.add(
             NewChange(
@@ -137,8 +144,8 @@ class ReviewService:
                 suggestion_id=suggestion.id,
                 kind=ChangeKind.APPLY,
                 actor=Actor.USER,
-                before=DocumentState.of(document),
-                after=DocumentState.of(updated),
+                before=DocumentState.of(document, with_content=with_content),
+                after=DocumentState.of(updated, with_content=with_content),
             ),
             self._clock.now(),
         )
@@ -155,6 +162,7 @@ class ReviewService:
                 "correspondent_id": correspondent_id,
                 "new_correspondent": None,
                 "created": patch.created,
+                "content": None,  # Beispiele fürs Lernen brauchen den Text nicht doppelt
             }
         )
         try:
@@ -165,13 +173,23 @@ class ReviewService:
         self._events.publish("changes", document.id)
         return change
 
-    async def accept_many(self, suggestion_ids: list[int]) -> AcceptManyResult:
-        """Übernimmt mehrere Vorschläge unverändert; ein Fehler hält die übrigen nicht auf."""
+    async def accept_many(
+        self, suggestion_ids: list[int], *, with_content: bool = False
+    ) -> AcceptManyResult:
+        """Übernimmt mehrere Vorschläge unverändert; ein Fehler hält die übrigen nicht auf.
+
+        Mit ``with_content`` wird eine Abschrift vom Bild mitgeschrieben, aber nur, wenn ihre
+        Prüfung nichts gefunden hat – wie das vorausgewählte Kästchen in der Prüfansicht.
+        """
         result = AcceptManyResult(accepted=[], failed=[])
         for suggestion_id in dict.fromkeys(suggestion_ids):
             try:
                 suggestion = await self._get_open(suggestion_id)
-                result.accepted.append(await self.accept(suggestion.id, suggestion.proposed))
+                values = suggestion.proposed
+                transcription = suggestion.transcription
+                if not with_content or (transcription is not None and transcription.warnings):
+                    values = values.model_copy(update={"content": None})
+                result.accepted.append(await self.accept(suggestion.id, values))
             except PilotError as error:
                 result.failed.append(BulkFailure(suggestion_id=suggestion_id, message=str(error)))
         return result

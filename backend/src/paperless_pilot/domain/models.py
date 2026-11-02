@@ -61,6 +61,7 @@ class DocumentPatch(_Frozen):
     tag_ids: tuple[int, ...] | None = None
     created: date | None = None
     custom_fields: tuple[CustomFieldValue, ...] | None = None
+    content: str | None = None  # OCR-Text; nur bei übernommener Vision-OCR
 
     def is_empty(self) -> bool:
         return not self.model_fields_set

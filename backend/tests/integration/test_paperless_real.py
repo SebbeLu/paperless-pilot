@@ -17,7 +17,7 @@ from testcontainers.core.container import DockerContainer
 from testcontainers.core.network import Network
 
 from paperless_pilot.adapters.paperless import PaperlessClient
-from paperless_pilot.domain.models import DocumentPatch
+from paperless_pilot.domain.models import DocumentPatch, FileKind
 
 pytestmark = pytest.mark.integration
 
@@ -155,3 +155,31 @@ async def test_roundtrip_against_real_paperless(
     updated = await client.update_document(doc_id, DocumentPatch(title="Rechnung 4711"))
     assert updated.title == "Rechnung 4711"
     assert (await client.get_document(doc_id)).title == "Rechnung 4711"
+
+
+async def test_content_write_and_original_download(
+    client: PaperlessClient, paperless_server: PaperlessServer
+) -> None:
+    """Vision-OCR: Originaldatei holen, Inhalt ersetzen – und die Suche findet den neuen Text."""
+    doc_id = await _upload_text_document(paperless_server, "Zeichensalat ;$r ‚„_ =««\n")
+
+    original = await client.get_file(doc_id, FileKind.ORIGINAL)
+    assert original.content.startswith(b"Zeichensalat")
+    assert original.media_type.startswith("text/plain")
+
+    updated = await client.update_document(
+        doc_id, DocumentPatch(content="Abschrift vom Bild\nStichwort Quittenmarmelade\n")
+    )
+    assert "Quittenmarmelade" in updated.content
+    assert "Quittenmarmelade" in (await client.get_document(doc_id)).content
+
+    headers = {"Authorization": f"Token {paperless_server.token}"}
+    async with httpx.AsyncClient(base_url=paperless_server.url, headers=headers) as http:
+        found: list[int] = []
+        for _ in range(30):  # der Suchindex wird beim Speichern aktualisiert, ggf. verzögert
+            response = await http.get("/api/documents/", params={"query": "Quittenmarmelade"})
+            found = [d["id"] for d in response.json()["results"]]
+            if doc_id in found:
+                break
+            await asyncio.sleep(1)
+    assert doc_id in found

@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     ollama_hosts: list[OllamaHostConfig] = []
 
     extraction_model: str = "gemma4:26b"
+    # Darunter gilt der OCR-Text als schlecht (0–1, siehe `paperless-pilot ocr-score`)
+    ocr_quality_threshold: float = 0.68
 
     # Home Assistant (optional): Leerlauf- und Sperr-Entitäten für die Rechner-Freigabe
     ha_url: HttpUrl | None = None

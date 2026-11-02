@@ -77,3 +77,34 @@ def test_extract_with_unknown_host_stops(monkeypatch: pytest.MonkeyPatch) -> Non
 
     with pytest.raises(SystemExit, match="Kein Ollama-Rechner PC"):
         entrypoint.main(["extract", "1", "--host", "PC"])
+
+
+@pytest.mark.usefixtures("env")
+def test_ocr_score_lists_worst_documents_without_writing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    paperless = FakeDocumentRepository(
+        [
+            document(1),
+            document(2, title="Ausweis", content="‚ _‚„___„.„_‚_1‚}44| ﬁfa?“ ‘ ;$r"),
+            document(3, title="Foto", content=""),
+        ]
+    )
+
+    @asynccontextmanager
+    async def fake_adapters(_settings: Settings) -> AsyncIterator[Adapters]:
+        yield Adapters(paperless=paperless, hosts=[])
+
+    monkeypatch.setattr(entrypoint, "real_adapters", fake_adapters)
+
+    entrypoint.main(["ocr-score", "--worst", "2"])
+
+    out = capsys.readouterr().out
+    assert "3 Dokumente" in out
+    assert "unter der Schwelle 0.68: 2" in out
+    [first, second] = out.strip().splitlines()[-2:]
+    assert first.split()[:2] == ["3", "0.00"]
+    assert "kein Text" in first
+    assert second.split()[0] == "2"
+    assert second.endswith("Ausweis")
+    assert paperless.patches == []

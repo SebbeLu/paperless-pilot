@@ -77,6 +77,7 @@ docker run -d --name paperless-pilot -p 8080:8080 -v /mnt/user/appdata/paperless
 | `PILOT_PAPERLESS_TOKEN` / `PILOT_PAPERLESS_TOKEN_FILE` | – | API-Token (Datei bevorzugt) |
 | `PILOT_OLLAMA_HOSTS` | `[]` | JSON-Liste `[{"name": …, "url": …, "model": …}]`; `model` optional je Rechner |
 | `PILOT_EXTRACTION_MODEL` | `gemma4:26b` | Standardmodell fürs Auslesen |
+| `PILOT_OCR_QUALITY_THRESHOLD` | `0.68` | darunter gilt der OCR-Text als schlecht; `paperless-pilot ocr-score` zeigt die Verteilung im eigenen Bestand |
 | `PILOT_HA_URL` | – | Home Assistant (optional) |
 | `PILOT_HA_TOKEN` / `PILOT_HA_TOKEN_FILE` | – | Long-Lived Access Token für Home Assistant |
 | `PILOT_DATA_DIR` | `/data` | SQLite-Datenbank (Aufträge, Vorschläge, Verlauf, Taxonomie, Rechner-Regeln, gelernte Korrekturen) |

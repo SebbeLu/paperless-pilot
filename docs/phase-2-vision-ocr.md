@@ -1,6 +1,6 @@
 # Phase 2 – Vision-OCR: Plan
 
-Stand: 2026-11-02 · Status: geplant · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
+Stand: 2026-11-02 · Status: Schritt 2.1 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
 
 ## 1. Ziel
 
@@ -133,7 +133,7 @@ Je Schritt ein Commit, jeweils mit Tests und grüner CI.
 | Variable | Bedeutung | Start |
 |---|---|---|
 | `PILOT_VISION_MODEL` | Modell zum Abschreiben | `gemma4:26b` |
-| `PILOT_OCR_QUALITY_THRESHOLD` | darunter gilt der Text als schlecht | nach Schritt 2.1 |
+| `PILOT_OCR_QUALITY_THRESHOLD` | darunter gilt der Text als schlecht | 0.68 (Abschnitt 13) |
 | `PILOT_VISION_MAX_PAGES` | Höchstzahl Seiten beim automatischen Abschreiben | 8 |
 | `PILOT_VISION_DPI` | Auflösung beim Rendern | 200 |
 
@@ -146,6 +146,35 @@ Je Schritt ein Commit, jeweils mit Tests und grüner CI.
 
 ## 12. Offene Punkte
 
-- Schwelle für die Textqualität (nach Schritt 2.1).
+- Schwelle für die Textqualität: Vorschlag 0.68 (Abschnitt 13), deine Bestätigung steht aus.
 - Ob ein kleineres Vision-Modell auf dem Gaming-PC reicht, etwa aus der Qwen-VL-Familie (Benchmark in Phase 2).
 - Unabhängig davon auf deiner Seite: `PAPERLESS_OCR_LANGUAGE=deu+eng` in Paperless prüfen. Das verbessert den Grundtext neuer Dokumente.
+
+## 13. Umsetzung
+
+### Schritt 2.1 – Textqualität bewerten (2026-11-02)
+
+`assess_ocr` im Domain-Kern und der Befehl `paperless-pilot ocr-score`, der nur liest. Gewichtung des Werts: Wortanteil 35 %, bekannte Wörter 35 % (voll ab 25 % Trefferquote), Buchstabenanteil 15 %, Textmenge je Seite 15 % (voll ab 500 Zeichen).
+
+**Lauf gegen den echten Bestand** (714 Dokumente):
+
+| Wert | 0–0.1 | 0.1–0.5 | 0.5–0.6 | 0.6–0.7 | 0.7–0.8 | 0.8–0.9 | 0.9–1 |
+|---|---|---|---|---|---|---|---|
+| Dokumente | 22 | 14 | 11 | 24 | 50 | 169 | 424 |
+
+Unter 0.68 liegen **60 Dokumente**. Das passt zu den rund 80 aus der ersten Bestandsaufnahme, die noch gröber gezählt hat.
+
+**Gefundene Fehlerarten** – alle löst das Abschreiben vom Bild:
+
+| Art | Beispiel | Wert |
+|---|---|---|
+| kein Text | Fotos, Bilder, Ultraschall | 0 |
+| fast leere Textebene | PDFs mit Textebene, aber nur 2 Zeichen je Seite; Paperless hat deshalb kein OCR gemacht | 0 |
+| kaputte Zeichentabelle im PDF | Buchstaben um drei Stellen verschoben („OHGLJ“ statt „ledig“) oder ganz fremde Zeichen | 0.2–0.4 |
+| gesperrte Schrift | „R e c h n u n g“ – lesbar, aber nicht durchsuchbar | 0.3 |
+| Zeichensalat | Ausweise, Muster im Hintergrund, Thermopapier | 0.4–0.65 |
+| Seite auf dem Kopf erkannt | „Legnıd“, „aqj jap“ – Tesseract liest die gedrehte Seite rückwärts | 0.6–0.67 |
+
+**Grenzbereich:** Gehaltsabrechnungen (viele Tabellen und Kürzel) liegen bei 0.68–0.73, ausländische Kassenbons um 0.64. Daher der Vorschlag **0.68**: Er fängt die Seiten auf dem Kopf und lässt die Gehaltsabrechnungen in Ruhe. Ein ausländischer Bon wird zwar abgeschrieben, sein Text bleibt aber nur ein Vorschlag.
+
+**Für Schritt 2.2:** Prüfen, ob das Vision-Modell auf dem Kopf stehende Seiten selbst richtig liest. Sonst wird die Seite vor dem Rendern gedreht.

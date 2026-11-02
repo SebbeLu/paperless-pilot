@@ -19,6 +19,7 @@ from paperless_pilot.domain.jobs import (
 from paperless_pilot.domain.lessons import Lesson, NewLesson
 from paperless_pilot.domain.suggestions import NewSuggestion, Suggestion, SuggestionStatus
 from paperless_pilot.domain.taxonomy import Taxonomy
+from paperless_pilot.domain.transcription import StoredTranscription, Transcription
 
 
 class JobRepository:
@@ -59,8 +60,17 @@ class JobRepository:
             ).one()
             return _job(row), True
 
-    async def lease_next(self, owner: str, now: datetime, lease_for: timedelta) -> Job | None:
-        """Holt atomar den nächsten fälligen Auftrag. Abgelaufene Leases fallen vorher zurück."""
+    async def lease_next(
+        self,
+        owner: str,
+        now: datetime,
+        lease_for: timedelta,
+        kinds: frozenset[JobKind] = frozenset(JobKind),
+    ) -> Job | None:
+        """Holt atomar den nächsten fälligen Auftrag einer der ``kinds``, die der Rechner kann.
+
+        Abgelaufene Leases fallen vorher zurück.
+        """
         async with self._engine.begin() as conn:
             await conn.execute(
                 update(t.jobs)
@@ -71,7 +81,11 @@ class JobRepository:
             )
             next_id = (
                 select(t.jobs.c.id)
-                .where(t.jobs.c.status == JobStatus.QUEUED, t.jobs.c.not_before <= now)
+                .where(
+                    t.jobs.c.status == JobStatus.QUEUED,
+                    t.jobs.c.not_before <= now,
+                    t.jobs.c.kind.in_(sorted(kinds)),
+                )
                 .order_by(t.jobs.c.priority.desc(), t.jobs.c.id)
                 .limit(1)
                 .scalar_subquery()
@@ -91,6 +105,27 @@ class JobRepository:
                 )
             ).first()
             return _job(row) if row else None
+
+    async def extend_lease(self, job_id: int, until: datetime, now: datetime) -> None:
+        """Lange Aufträge (Vision-OCR über mehrere Seiten) brauchen mehr Zeit als der Standard."""
+        async with self._engine.begin() as conn:
+            await conn.execute(
+                update(t.jobs)
+                .where(t.jobs.c.id == job_id, t.jobs.c.status == JobStatus.RUNNING)
+                .values(lease_expires_at=until, updated_at=now)
+            )
+
+    async def last_status(self, document_id: int, kind: JobKind) -> JobStatus | None:
+        """Status des jüngsten Auftrags dieser Art für das Dokument."""
+        query = (
+            select(t.jobs.c.status)
+            .where(t.jobs.c.document_id == document_id, t.jobs.c.kind == kind)
+            .order_by(t.jobs.c.id.desc())
+            .limit(1)
+        )
+        async with self._engine.connect() as conn:
+            status = (await conn.execute(query)).scalar()
+            return JobStatus(status) if status else None
 
     async def complete(self, job_id: int, now: datetime) -> None:
         await self._set(job_id, now, status=JobStatus.SUCCEEDED, last_error=None)
@@ -400,3 +435,48 @@ class TaxonomyRepository:
                 await conn.execute(
                     insert(t.taxonomy).values(id=1, data=data, configured=True, updated_at=now)
                 )
+
+
+class TranscriptionRepository:
+    """Abschriften vom Bild; je Dokument gilt nur die neueste."""
+
+    def __init__(self, engine: AsyncEngine) -> None:
+        self._engine = engine
+
+    async def save(self, transcription: Transcription, now: datetime) -> StoredTranscription:
+        async with self._engine.begin() as conn:
+            await conn.execute(
+                delete(t.transcriptions).where(
+                    t.transcriptions.c.document_id == transcription.document_id
+                )
+            )
+            row = (
+                await conn.execute(
+                    insert(t.transcriptions)
+                    .values(
+                        document_id=transcription.document_id,
+                        data=transcription.model_dump(mode="json"),
+                        created_at=now,
+                    )
+                    .returning(t.transcriptions)
+                )
+            ).one()
+            return _transcription(row)
+
+    async def for_document(self, document_id: int) -> StoredTranscription | None:
+        query = select(t.transcriptions).where(t.transcriptions.c.document_id == document_id)
+        async with self._engine.connect() as conn:
+            row = (await conn.execute(query)).first()
+            return _transcription(row) if row else None
+
+    async def remove(self, document_id: int) -> None:
+        async with self._engine.begin() as conn:
+            await conn.execute(
+                delete(t.transcriptions).where(t.transcriptions.c.document_id == document_id)
+            )
+
+
+def _transcription(row: Row[Any]) -> StoredTranscription:
+    return StoredTranscription.model_validate(
+        {**row.data, "id": row.id, "created_at": row.created_at}
+    )

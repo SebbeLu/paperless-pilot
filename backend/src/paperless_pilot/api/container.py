@@ -16,6 +16,7 @@ from paperless_pilot.adapters.db.repositories import (
     LessonRepository,
     SuggestionRepository,
     TaxonomyRepository,
+    TranscriptionRepository,
 )
 from paperless_pilot.adapters.demo import DEMO_MODEL
 from paperless_pilot.adapters.homeassistant import HomeAssistantClient
@@ -32,6 +33,7 @@ from paperless_pilot.application.processing import JobProcessor, Scheduler
 from paperless_pilot.application.review import ReviewService
 from paperless_pilot.application.system_status import SystemStatusService
 from paperless_pilot.application.taxonomy import TaxonomyService
+from paperless_pilot.application.transcription import TranscriptionService, VisionOcr
 from paperless_pilot.config import Settings
 from paperless_pilot.domain.clock import Clock, SystemClock
 from paperless_pilot.domain.ports import (
@@ -70,6 +72,8 @@ class Container:
     taxonomy: TaxonomyService
     registry: HostRegistry
     extraction: ExtractionService
+    transcriptions: TranscriptionRepository
+    vision: VisionOcr
     intake: IntakeService
     scheduler: Scheduler
     review: ReviewService
@@ -128,6 +132,7 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
             clock,
             tz,
             events,
+            vision_model=DEMO_MODEL if settings.demo else settings.vision_model,
         )
         changes = ChangeRepository(engine)
         lessons = LessonService(
@@ -140,8 +145,34 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
             events,
         )
         extraction = ExtractionService(paperless, taxonomy_repository, lessons, clock, tz)
+        transcriptions = TranscriptionRepository(engine)
+        vision = VisionOcr(
+            TranscriptionService(
+                paperless,
+                adapters.pages,
+                clock,
+                max_pages=settings.vision_max_pages,
+                max_tokens=settings.vision_max_tokens,
+            ),
+            transcriptions,
+            jobs,
+            registry,
+            clock,
+            model=DEMO_MODEL if settings.demo else settings.vision_model,
+            threshold=settings.ocr_quality_threshold,
+            time_per_page=timedelta(seconds=settings.llm_timeout_seconds),
+            max_pages=settings.vision_max_pages,
+        )
         processor = JobProcessor(
-            paperless, jobs, suggestions, taxonomy_repository, extraction, registry, clock, events
+            paperless,
+            jobs,
+            suggestions,
+            taxonomy_repository,
+            extraction,
+            registry,
+            clock,
+            events,
+            vision=vision,
         )
         yield Container(
             settings=settings,
@@ -157,6 +188,8 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
             taxonomy=TaxonomyService(taxonomy_repository, paperless, clock, events),
             registry=registry,
             extraction=extraction,
+            transcriptions=transcriptions,
+            vision=vision,
             intake=IntakeService(paperless, jobs, taxonomy_repository, clock, events),
             scheduler=Scheduler(
                 registry,

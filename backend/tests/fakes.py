@@ -150,8 +150,11 @@ class FakeLlmHost:
         probe: HostProbe | None = None,
         replies: Sequence[BaseModel | dict[str, Any] | str | PilotError] = (),
         error: PilotError | None = None,
+        capabilities: dict[str, frozenset[str]] | None = None,
     ) -> None:
         self._name = name
+        self.capabilities = capabilities or {"gemma4:26b": frozenset({"completion", "vision"})}
+        self.capability_calls = 0
         self._probe = probe or HostProbe(
             version="0.24.0", models=(LlmModel(name="gemma4:26b", size_bytes=1),)
         )
@@ -175,6 +178,12 @@ class FakeLlmHost:
         if self.error is not None:
             raise self.error
         return self._probe
+
+    async def model_capabilities(self, model: str) -> frozenset[str]:
+        if self.error is not None:
+            raise self.error
+        self.capability_calls += 1
+        return self.capabilities.get(model, frozenset({"completion"}))
 
     async def generate_structured[T: BaseModel](
         self,
@@ -225,7 +234,10 @@ class FakePageRenderer:
     def __init__(self, pages: Sequence[RenderedPage] = (RenderedPage(png=b"page"),)) -> None:
         self.pages = list(pages)
         self.files: list[tuple[DocumentFile, int]] = []
+        self.error: PilotError | None = None
 
     async def render(self, file: DocumentFile, max_pages: int) -> list[RenderedPage]:
         self.files.append((file, max_pages))
+        if self.error is not None:
+            raise self.error
         return self.pages[:max_pages]

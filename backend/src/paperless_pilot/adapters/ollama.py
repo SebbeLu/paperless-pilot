@@ -76,6 +76,12 @@ class OllamaHost:
             ),
         )
 
+    async def model_capabilities(self, model: str) -> frozenset[str]:
+        data = await self._request(
+            "POST", "api/show", json={"model": model}, request_timeout=self._probe_timeout
+        )
+        return frozenset(data.get("capabilities") or ())
+
     async def generate_text(
         self,
         *,

@@ -135,3 +135,38 @@ async def test_stats_list_and_get(jobs: JobRepository, clock: FakeClock) -> None
     assert [j.document_id for j in await jobs.list(JobStatus.SUCCEEDED)] == [1]
     assert (await jobs.get(a.id)) is not None
     assert await jobs.get(999) is None
+
+
+async def test_lease_only_kinds_the_host_can_do(jobs: JobRepository, clock: FakeClock) -> None:
+    await jobs.enqueue(1, JobKind.TRANSCRIBE, clock.now(), priority=10)
+    extract, _ = await jobs.enqueue(2, JobKind.EXTRACT, clock.now())
+
+    leased = await jobs.lease_next("PC", clock.now(), LEASE, frozenset({JobKind.EXTRACT}))
+
+    assert leased is not None
+    assert leased.id == extract.id
+    assert await jobs.lease_next("PC", clock.now(), LEASE, frozenset({JobKind.EXTRACT})) is None
+
+
+async def test_extend_lease_keeps_owner(jobs: JobRepository, clock: FakeClock) -> None:
+    await jobs.enqueue(1, JobKind.TRANSCRIBE, clock.now())
+    job = await jobs.lease_next("Mac", clock.now(), LEASE)
+    assert job is not None
+
+    await jobs.extend_lease(job.id, clock.now() + timedelta(hours=2), clock.now())
+
+    [extended] = await jobs.list()
+    assert extended.lease_owner == "Mac"
+    assert extended.lease_expires_at == clock.now() + timedelta(hours=2)
+    clock.advance(minutes=30)
+    assert await jobs.lease_next("PC", clock.now(), LEASE) is None  # nicht abgelaufen
+
+
+async def test_last_status_per_document_and_kind(jobs: JobRepository, clock: FakeClock) -> None:
+    assert await jobs.last_status(1, JobKind.TRANSCRIBE) is None
+    first, _ = await jobs.enqueue(1, JobKind.TRANSCRIBE, clock.now())
+    await jobs.fail(first.id, clock.now(), "kaputt", None)
+    await jobs.enqueue(1, JobKind.EXTRACT, clock.now())
+
+    assert await jobs.last_status(1, JobKind.TRANSCRIBE) == JobStatus.FAILED
+    assert await jobs.last_status(1, JobKind.EXTRACT) == JobStatus.QUEUED

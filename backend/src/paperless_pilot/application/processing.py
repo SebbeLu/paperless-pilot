@@ -1,4 +1,4 @@
-"""Aufträge abarbeiten: auslesen, Vorschlag speichern, Status-Tags setzen, Fehler einordnen."""
+"""Aufträge abarbeiten: abschreiben oder auslesen, Vorschlag speichern, Fehler einordnen."""
 
 import asyncio
 import contextlib
@@ -13,6 +13,7 @@ from paperless_pilot.adapters.db.repositories import (
 from paperless_pilot.application.events import EventBus
 from paperless_pilot.application.extraction import ExtractionService
 from paperless_pilot.application.hosts import HostRegistry
+from paperless_pilot.application.transcription import VisionOcr
 from paperless_pilot.domain.clock import Clock
 from paperless_pilot.domain.errors import (
     InvalidLlmOutputError,
@@ -20,8 +21,9 @@ from paperless_pilot.domain.errors import (
     NoTextError,
     NotFoundError,
     PilotError,
+    ValidationFailedError,
 )
-from paperless_pilot.domain.jobs import Job, retry_delay, should_retry
+from paperless_pilot.domain.jobs import Job, JobKind, retry_delay, should_retry
 from paperless_pilot.domain.models import DocumentPatch
 from paperless_pilot.domain.ports import DocumentRepository
 from paperless_pilot.domain.taxonomy import Taxonomy
@@ -42,7 +44,9 @@ class JobProcessor:
         registry: HostRegistry,
         clock: Clock,
         events: EventBus,
+        vision: VisionOcr | None = None,
     ) -> None:
+        self._vision = vision
         self._paperless = paperless
         self._jobs = jobs
         self._suggestions = suggestions
@@ -53,16 +57,70 @@ class JobProcessor:
         self._events = events
 
     async def process(self, job: Job, host_name: str) -> None:
-        state = self._registry.state(host_name)
         self._registry.set_busy(host_name, job.document_id)
         duration: int | None = None
         try:
+            if job.kind == JobKind.TRANSCRIBE:
+                duration = await self._transcribe(job, host_name)
+            else:
+                duration = await self._extract(job, host_name)
+        finally:
+            self._registry.set_busy(host_name, None, duration)
+            self._events.publish("jobs", job.document_id)
+
+    async def _transcribe(self, job: Job, host_name: str) -> int | None:
+        if self._vision is None:  # Rechner bekommen solche Aufträge nur mit Vision-OCR
+            await self._fail(job, "Vision-OCR ist nicht eingerichtet", final=True, tag=False)
+            return None
+        try:
+            stored = await self._vision.transcribe(job, host_name)
+        except LlmHostUnavailableError as exc:
+            await self._jobs.release(job.id, self._clock.now(), str(exc))
+            self._registry.mark_offline(host_name, str(exc))
+            return None
+        except NotFoundError as exc:
+            await self._fail(job, str(exc), final=True, tag=False)
+            return None
+        except PilotError as exc:
+            final = isinstance(exc, ValidationFailedError) or not should_retry(job.attempts)
+            await self._fail(job, str(exc), final=final, tag=False)
+            if final:  # dann eben mit dem OCR-Text von Paperless auslesen
+                await self._enqueue_extract(job)
+            return None
+        await self._jobs.complete(job.id, self._clock.now())
+        await self._enqueue_extract(job)
+        return int(stored.duration_seconds * 1000)
+
+    async def _enqueue_extract(self, job: Job) -> None:
+        await self._jobs.enqueue(
+            job.document_id, JobKind.EXTRACT, self._clock.now(), priority=job.priority
+        )
+
+    async def _extract(self, job: Job, host_name: str) -> int | None:
+        state = self._registry.state(host_name)
+        duration: int | None = None
+        try:
+            content = None
+            if self._vision is not None:
+                document = await self._paperless.get_document(job.document_id)
+                if await self._vision.needs_transcription(document):
+                    # Erst vom Bild abschreiben; der Auftrag „auslesen“ folgt danach neu
+                    await self._jobs.enqueue(
+                        job.document_id,
+                        JobKind.TRANSCRIBE,
+                        self._clock.now(),
+                        priority=job.priority,
+                    )
+                    await self._jobs.complete(job.id, self._clock.now())
+                    return None
+                content = await self._vision.text_for(job.document_id)
             suggestion = await self._extraction.extract(
                 job.document_id,
                 self._registry.host(host_name),
                 state.model,
                 job_id=job.id,
                 short=job.attempts > 1,
+                content=content,
             )
             duration = suggestion.duration_ms
             saved = await self._suggestions.add(suggestion, self._clock.now())
@@ -83,9 +141,7 @@ class JobProcessor:
             await self._fail(job, str(exc), final=job.attempts >= INVALID_OUTPUT_ATTEMPTS, now=True)
         except PilotError as exc:
             await self._fail(job, str(exc), final=not should_retry(job.attempts))
-        finally:
-            self._registry.set_busy(host_name, None, duration)
-            self._events.publish("jobs", job.document_id)
+        return duration
 
     async def _fail(
         self, job: Job, error: str, *, final: bool, tag: bool = True, now: bool = False
@@ -159,7 +215,10 @@ class Scheduler:
         """Bearbeitet höchstens einen Auftrag. Liefert ``True``, wenn etwas zu tun war."""
         if not self._registry.state(host_name).can_work or not await self._ready():
             return False
-        job = await self._jobs.lease_next(host_name, self._clock.now(), self._lease_for)
+        state = self._registry.state(host_name)
+        job = await self._jobs.lease_next(
+            host_name, self._clock.now(), self._lease_for, state.kinds
+        )
         if job is None:
             return False
         await self._processor.process(job, host_name)

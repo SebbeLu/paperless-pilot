@@ -44,12 +44,17 @@ class ExtractionService:
         *,
         job_id: int | None = None,
         short: bool = False,
+        content: str | None = None,
     ) -> NewSuggestion:
         """Liest aus, ohne etwas zu speichern oder in Paperless zu schreiben.
 
         ``short`` kürzt den Text stärker – für den zweiten Versuch nach einer ungültigen Antwort.
+        ``content`` ersetzt den OCR-Text aus Paperless, etwa durch eine Abschrift vom Bild;
+        Belegzitate werden dann gegen diesen Text geprüft.
         """
         document = await self._paperless.get_document(document_id)
+        if content is not None:
+            document = document.model_copy(update={"content": content})
         if not document.content.strip():
             msg = "Dokument hat keinen OCR-Text"
             raise NoTextError(msg)

@@ -14,6 +14,7 @@ const base: HostState = {
   version: "0.24.0",
   models: ["gemma4:26b"],
   has_model: true,
+  has_vision: true,
   problem: null,
   error: null,
   checked_at: "2026-10-30T12:00:00Z",

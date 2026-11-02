@@ -200,6 +200,9 @@ class DemoLlmHost:
     async def probe(self) -> HostProbe:
         return HostProbe(version="demo", models=(LlmModel(name=DEMO_MODEL, size_bytes=0),))
 
+    async def model_capabilities(self, model: str) -> frozenset[str]:
+        return frozenset({"completion", "vision"})
+
     async def generate_text(
         self,
         *,

@@ -14,6 +14,7 @@ from paperless_pilot.application.events import EventBus
 from paperless_pilot.domain.availability import Decision, EntityState, HostRules, decide
 from paperless_pilot.domain.clock import Clock
 from paperless_pilot.domain.errors import AuthenticationError, NotFoundError, PilotError
+from paperless_pilot.domain.jobs import JobKind
 from paperless_pilot.domain.ports import AvailabilitySource, LlmHost
 
 logger = logging.getLogger(__name__)
@@ -25,10 +26,12 @@ class HostState(BaseModel):
     name: str
     url: str
     model: str
+    vision_model: str | None = None
     online: bool = False
     version: str | None = None
     models: list[str] = []
     has_model: bool = False
+    has_vision: bool = False  # Vision-Modell vorhanden und kann Bilder
     problem: Problem | None = None
     error: str | None = None
     checked_at: datetime | None = None
@@ -42,7 +45,19 @@ class HostState(BaseModel):
 
     @property
     def can_work(self) -> bool:
-        return self.online and self.has_model and self.decision.allowed
+        return self.online and (self.has_model or self.has_vision) and self.decision.allowed
+
+    @property
+    def kinds(self) -> frozenset[JobKind]:
+        """Auftragsarten, die der Rechner übernehmen kann."""
+        return frozenset(
+            kind
+            for kind, able in (
+                (JobKind.EXTRACT, self.has_model),
+                (JobKind.TRANSCRIBE, self.has_vision),
+            )
+            if able
+        )
 
 
 class HostRegistry:
@@ -56,8 +71,11 @@ class HostRegistry:
         clock: Clock,
         timezone: ZoneInfo,
         events: EventBus,
+        vision_model: str | None = None,
     ) -> None:
         self._hosts = {h.name: h for h in hosts}
+        self._vision_model = vision_model
+        self._capabilities: dict[tuple[str, str], frozenset[str]] = {}
         self._settings = settings
         self._availability = availability
         self._clock = clock
@@ -65,7 +83,10 @@ class HostRegistry:
         self._events = events
         self._states = {
             h.name: HostState(
-                name=h.name, url=h.base_url, model=model_overrides.get(h.name, default_model)
+                name=h.name,
+                url=h.base_url,
+                model=model_overrides.get(h.name, default_model),
+                vision_model=vision_model,
             )
             for h in hosts
         }
@@ -86,6 +107,10 @@ class HostRegistry:
 
     def states(self) -> list[HostState]:
         return list(self._states.values())
+
+    def vision_available(self) -> bool:
+        """Kann irgendein Rechner Seiten vom Bild abschreiben (auch wenn gerade gesperrt)?"""
+        return any(s.has_vision for s in self._states.values())
 
     async def refresh(self) -> list[HostState]:
         """Fragt alle Rechner und Home Assistant ab und entscheidet über die Freigaben."""
@@ -112,7 +137,12 @@ class HostRegistry:
                         else ha_states is not None,
                     }
                 )
-                updated = updated.model_copy(update={"has_model": updated.model in updated.models})
+                updated = updated.model_copy(
+                    update={
+                        "has_model": updated.model in updated.models,
+                        "has_vision": await self._has_vision(name, updated),
+                    }
+                )
                 self._states[name] = updated
                 if _visible(previous) != _visible(updated):
                     logger.info("Rechner %s: %s", name, updated.decision.reason)
@@ -152,6 +182,20 @@ class HostRegistry:
             "problem": None,
             "error": None,
         }
+
+    async def _has_vision(self, name: str, state: HostState) -> bool:
+        model = self._vision_model
+        if model is None or model not in state.models:
+            return False
+        if not state.online:
+            return state.has_vision  # letzter bekannter Stand
+        if (name, model) not in self._capabilities:
+            try:
+                self._capabilities[name, model] = await self._hosts[name].model_capabilities(model)
+            except PilotError as exc:
+                logger.warning("Rechner %s: Fähigkeiten von %s unbekannt: %s", name, model, exc)
+                return False
+        return "vision" in self._capabilities[name, model]
 
     async def _entity_states(self, entities: set[str]) -> dict[str, EntityState] | None:
         if not entities:

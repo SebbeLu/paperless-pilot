@@ -9,10 +9,12 @@ from paperless_pilot.adapters.db.repositories import (
     HostSettingsRepository,
     SuggestionRepository,
     TaxonomyRepository,
+    TranscriptionRepository,
 )
 from paperless_pilot.adapters.db.schema import UtcDateTime
 from paperless_pilot.domain.availability import HostRules
 from paperless_pilot.domain.changes import Actor, ChangeKind, DocumentState, NewChange
+from paperless_pilot.domain.ocr_quality import assess_ocr
 from paperless_pilot.domain.suggestions import (
     CheckStatus,
     FieldCheck,
@@ -21,6 +23,7 @@ from paperless_pilot.domain.suggestions import (
     SuggestionStatus,
 )
 from paperless_pilot.domain.taxonomy import Taxonomy, TaxonomyEntry
+from paperless_pilot.domain.transcription import Transcription, TranscriptionWarning
 from tests.clock import FakeClock
 
 
@@ -143,3 +146,38 @@ async def test_taxonomy_defaults_then_saved(engine: AsyncEngine, clock: FakeCloc
 def test_naive_datetimes_are_rejected() -> None:
     with pytest.raises(ValueError, match="Zeitzone"):
         UtcDateTime().process_bind_param(datetime(2026, 1, 1), None)  # type: ignore[arg-type]
+
+
+async def test_transcriptions_keep_only_the_newest(engine: AsyncEngine, clock: FakeClock) -> None:
+    repo = TranscriptionRepository(engine)
+    first = Transcription(
+        document_id=5,
+        text="alt",
+        pages=1,
+        rotated_pages=[],
+        skipped_pages=0,
+        quality_before=assess_ocr(""),
+        quality_after=assess_ocr("alt"),
+        warnings=[],
+        model="gemma4:26b",
+        host="Mac",
+        duration_seconds=12.5,
+    )
+    await repo.save(first, clock.now())
+    newer = first.model_copy(
+        update={
+            "text": "Rechnung",
+            "rotated_pages": [2],
+            "warnings": [TranscriptionWarning(code="date", message="Ungültiges Datum")],
+        }
+    )
+
+    saved = await repo.save(newer, clock.now())
+
+    assert await repo.for_document(5) == saved
+    assert saved.text == "Rechnung"
+    assert saved.rotated_pages == [2]
+    assert saved.warnings[0].code == "date"
+    assert saved.created_at == clock.now()
+    await repo.remove(5)
+    assert await repo.for_document(5) is None

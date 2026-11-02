@@ -1,6 +1,6 @@
 # Phase 2 – Vision-OCR: Plan
 
-Stand: 2026-11-02 · Status: Schritte 2.1 und 2.2 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
+Stand: 2026-11-02 · Status: Schritte 2.1 bis 2.3 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
 
 ## 1. Ziel
 
@@ -219,3 +219,14 @@ Alle zehn sind deutlich besser lesbar. Im Schnitt dauert das 10–20 s je Seite;
 | Verstümmelte Ausweiszeile mit 60 Zeichen wurde nicht als solche erkannt | jede Zeile ab 20 Zeichen aus `A–Z`, `0–9` und `<` gilt als MRZ und wird geprüft |
 | Zahlen, die das Modell gelesen hat, die Tesseract aber gar nicht erkannt hatte (z. B. eine Zugangsnummer auf dem Ausweis) | werden gemeldet – das ist gewollt: genau dort muss man hinsehen |
 | Bei Seiten auf dem Kopf meldet die Zahlen-Prüfung fast alles, weil der alte Text nur Zeichensalat enthält | bleibt vorerst so; in der Oberfläche (Schritt 2.5) werden die Zahlen im Vergleich markiert statt als lange Liste gezeigt |
+
+### Schritt 2.3 – Einbau in Warteschlange und Rechner (2026-11-02)
+
+- **Neue Auftragsart `transcribe`.** Ein Auftrag „auslesen“ prüft zuerst die Textqualität. Liegt sie unter der Schwelle, reiht er „abschreiben“ mit derselben Priorität ein und ist erledigt. Nach dem Abschreiben folgt ein neuer Auftrag „auslesen“.
+- **Nicht noch einmal abschreiben,** wenn es für das Dokument schon eine Abschrift gibt, wenn der letzte Versuch endgültig gescheitert ist oder wenn kein Rechner Bilder versteht. Dann wird wie bisher mit dem OCR-Text von Paperless ausgelesen.
+- **Abschrift speichern:** Tabelle `transcriptions`, je Dokument nur die neueste (Migration 0003).
+- **Auslesen mit der Abschrift:** Das Modell bekommt die Abschrift statt des OCR-Texts, und die Belegzitate werden gegen sie geprüft. Ist die Abschrift nicht besser als der OCR-Text, bleibt es beim OCR-Text.
+- **In Paperless ändert sich dabei nur der Status-Tag.** Der Inhalt wird erst mit der Übernahme geschrieben (Schritt 2.4).
+- **Rechner:** Die Rechner-Überwachung fragt einmal je Rechner und Modell `/api/show` nach den Fähigkeiten und merkt sie sich. Aufträge „abschreiben“ bekommen nur Rechner, deren Vision-Modell (`PILOT_VISION_MODEL`) installiert ist und `vision` kann. Ist ein Rechner offline, gilt der letzte bekannte Stand.
+- **Zeit:** Ein Auftrag „abschreiben“ verlängert seine Lease auf `PILOT_LLM_TIMEOUT_SECONDS` × `PILOT_VISION_MAX_PAGES`, damit lange Dokumente nicht einem zweiten Rechner zufallen.
+- **Fehler:** Ist der Rechner weg, geht der Auftrag ohne Fehlversuch zurück in die Warteschlange. Lässt sich die Datei nicht lesen oder scheitert das Abschreiben endgültig, wird mit dem OCR-Text ausgelesen.

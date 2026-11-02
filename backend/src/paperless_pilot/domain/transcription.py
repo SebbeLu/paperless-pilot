@@ -2,6 +2,7 @@
 
 import calendar
 import re
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 from rapidfuzz import fuzz
@@ -61,6 +62,11 @@ class Transcription(BaseModel):
     model: str
     host: str
     duration_seconds: float
+
+
+class StoredTranscription(Transcription):
+    id: int
+    created_at: datetime
 
 
 def clean_page(raw: str) -> tuple[str, bool]:

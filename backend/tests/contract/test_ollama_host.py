@@ -148,6 +148,19 @@ async def test_generate_text_connection_errors(host: OllamaHost, api: respx.Mock
         await host.generate_text(model="m", prompt="p", max_tokens=10)
 
 
+async def test_model_capabilities(host: OllamaHost, api: respx.MockRouter) -> None:
+    route = api.post("/api/show").respond(json={"capabilities": ["completion", "vision"]})
+
+    assert await host.model_capabilities("gemma4:26b") == {"completion", "vision"}
+    assert json.loads(route.calls.last.request.content) == {"model": "gemma4:26b"}
+
+
+async def test_model_capabilities_of_old_ollama(host: OllamaHost, api: respx.MockRouter) -> None:
+    api.post("/api/show").respond(json={"details": {}})
+
+    assert await host.model_capabilities("alt") == frozenset()
+
+
 async def test_generate_without_system_and_images(host: OllamaHost, api: respx.MockRouter) -> None:
     route = api.post("/api/chat").respond(json=chat_reply('{"correspondent": "X", "amount": 1}'))
 

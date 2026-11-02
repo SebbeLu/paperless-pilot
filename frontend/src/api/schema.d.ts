@@ -747,6 +747,8 @@ export interface components {
             url: string;
             /** Model */
             model: string;
+            /** Vision Model */
+            vision_model?: string | null;
             /**
              * Online
              * @default false
@@ -764,6 +766,11 @@ export interface components {
              * @default false
              */
             has_model: boolean;
+            /**
+             * Has Vision
+             * @default false
+             */
+            has_vision: boolean;
             problem?: components["schemas"]["Problem"] | null;
             /** Error */
             error?: string | null;
@@ -861,7 +868,7 @@ export interface components {
          * JobKind
          * @enum {string}
          */
-        JobKind: "extract";
+        JobKind: "extract" | "transcribe";
         /**
          * JobStatus
          * @enum {string}

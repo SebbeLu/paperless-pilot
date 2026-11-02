@@ -1566,6 +1566,17 @@
             "type": "string",
             "title": "Model"
           },
+          "vision_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vision Model"
+          },
           "online": {
             "type": "boolean",
             "title": "Online",
@@ -1593,6 +1604,11 @@
           "has_model": {
             "type": "boolean",
             "title": "Has Model",
+            "default": false
+          },
+          "has_vision": {
+            "type": "boolean",
+            "title": "Has Vision",
             "default": false
           },
           "problem": {
@@ -1856,7 +1872,8 @@
       "JobKind": {
         "type": "string",
         "enum": [
-          "extract"
+          "extract",
+          "transcribe"
         ],
         "title": "JobKind"
       },

@@ -58,6 +58,10 @@ class LlmHost(Protocol):
 
     async def probe(self) -> HostProbe: ...
 
+    async def model_capabilities(self, model: str) -> frozenset[str]:
+        """Was das Modell kann, etwa ``completion`` oder ``vision``."""
+        ...
+
     async def generate_structured[T: BaseModel](
         self,
         *,

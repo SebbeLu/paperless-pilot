@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 class JobKind(StrEnum):
     EXTRACT = "extract"
+    TRANSCRIBE = "transcribe"  # Vision-OCR: Seiten vom Bild abschreiben, danach auslesen
 
 
 class JobStatus(StrEnum):

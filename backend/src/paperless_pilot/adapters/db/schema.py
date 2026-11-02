@@ -132,3 +132,12 @@ taxonomy = Table(
     Column("configured", Boolean, nullable=False, default=False),
     Column("updated_at", UtcDateTime, nullable=False),
 )
+
+transcriptions = Table(
+    "transcriptions",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("document_id", Integer, nullable=False, unique=True),  # je Dokument nur die neueste
+    Column("data", JSON, nullable=False),
+    Column("created_at", UtcDateTime, nullable=False),
+)

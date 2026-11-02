@@ -2,7 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { AlertTriangle, FileText, Inbox, RefreshCw, Server } from "lucide-react";
 import type { ReactNode } from "react";
 import type { HostStatus, PaperlessStatus, SystemStatus } from "@/api/client";
-import { useEnqueueInbox, useJobs, useRetryJob, useSystemStatus } from "@/api/queries";
+import {
+  useEnqueueInbox,
+  useJobs,
+  useRetryJob,
+  useSystemStatus,
+  useTranscribeDocuments,
+  useWeakText,
+} from "@/api/queries";
 import { AiIcon } from "@/components/ai-icon";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -139,8 +146,57 @@ function WorkSection({ status }: { status: SystemStatus }) {
         />
         <Figure icon={null} label="Fehler" value={numberFormat.format(queue.failed)} />
       </dl>
+      <WeakTextCard />
       {queue.failed > 0 && <FailedJobs />}
     </section>
+  );
+}
+
+/** Dokumente, deren OCR-Text so schlecht ist, dass ein Vision-Modell ihn neu abschreiben sollte. */
+function WeakTextCard() {
+  const { data, error, isPending } = useWeakText();
+  const transcribe = useTranscribeDocuments();
+  const count = data?.document_ids.length ?? 0;
+  return (
+    <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
+      <div>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Schwacher Text</p>
+        <p className="mt-1 text-sm">
+          {isPending
+            ? "Bewerte den Text aller Dokumente …"
+            : error
+              ? `Nicht bewertet: ${error.message}`
+              : count === 0
+                ? "Kein Dokument mit schwachem OCR-Text ohne Abschrift."
+                : `${numberFormat.format(count)} ${count === 1 ? "Dokument hat" : "Dokumente haben"} schwachen OCR-Text (Qualität unter ${data?.threshold.toLocaleString("de-DE")}).`}
+        </p>
+        {data && count > 0 && !data.vision_available && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            Kein Rechner mit Vision-Modell – unter Rechner &amp; Modelle nachsehen.
+          </p>
+        )}
+        {transcribe.data && (
+          <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+            {transcribe.data.enqueued.length} eingereiht – die neuen Vorschläge kommen unter Prüfen.
+          </p>
+        )}
+        {transcribe.error && (
+          <p className="mt-1 text-xs text-rose-700 dark:text-rose-300">
+            {transcribe.error.message}
+          </p>
+        )}
+      </div>
+      {count > 0 && (
+        <Button
+          onClick={() => data && transcribe.mutate(data.document_ids)}
+          disabled={transcribe.isPending || !data?.vision_available}
+          title="KI-Funktion: Text dieser Dokumente vom Bild abschreiben und danach neu auslesen"
+        >
+          <AiIcon />
+          Alle einreihen
+        </Button>
+      )}
+    </Card>
   );
 }
 

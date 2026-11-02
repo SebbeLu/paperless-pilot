@@ -80,6 +80,11 @@ function HostCard({ host }: { host: HostState }) {
 
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <Fact label="Modell" value={host.model} warn={host.online && !host.has_model} />
+          <Fact
+            label="Vision (Text vom Bild)"
+            value={host.has_vision ? (host.vision_model ?? "ja") : "nein"}
+            warn={host.online && !!host.vision_model && !host.has_vision}
+          />
           <Fact label="Ausgelesen" value={`${host.processed ?? 0} Dokumente`} />
           <Fact
             label="Zuletzt"
@@ -91,6 +96,13 @@ function HostCard({ host }: { host: HostState }) {
         {host.online && !host.has_model && (
           <Alert tone="warning">
             Modell fehlt auf diesem Rechner. Dort ausführen: <code>ollama pull {host.model}</code>
+          </Alert>
+        )}
+
+        {host.online && host.vision_model && !host.has_vision && (
+          <Alert tone="info">
+            Für schwachen Text fehlt das Vision-Modell. Dort ausführen:{" "}
+            <code>ollama pull {host.vision_model}</code>
           </Alert>
         )}
 

@@ -48,6 +48,14 @@ export const defaultHandlers = [
   http.get("*/api/jobs", () => HttpResponse.json([])),
   http.get("*/api/changes", () => HttpResponse.json([])),
   http.get("*/api/lessons", () => HttpResponse.json([])),
+  http.get("*/api/documents/weak-text", () =>
+    HttpResponse.json({
+      document_ids: [],
+      threshold: 0.68,
+      vision_available: true,
+      checked_at: "2026-10-30T12:00:00Z",
+    }),
+  ),
 ];
 
 export const server = setupServer(...defaultHandlers);

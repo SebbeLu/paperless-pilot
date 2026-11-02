@@ -1,6 +1,6 @@
 # Phase 2 – Vision-OCR: Plan
 
-Stand: 2026-11-02 · Status: Schritte 2.1 bis 2.4 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
+Stand: 2026-11-02 · Status: Schritte 2.1 bis 2.5 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
 
 ## 1. Ziel
 
@@ -241,3 +241,15 @@ Alle zehn sind deutlich besser lesbar. Im Schnitt dauert das 10–20 s je Seite;
   - Die Sammel-Übernahme schreibt ihn nur mit `with_content` und nur bei Abschriften ohne Warnungen.
   - So landet kein Text in Paperless, den du nicht gesehen hast.
 - **Gegen echtes Paperless 3.2.1 geprüft (CI):** Die Originaldatei lässt sich laden, der Inhalt lässt sich per PATCH ersetzen, und die Volltextsuche findet danach den neuen Text.
+
+### Schritt 2.5 – Oberfläche (2026-11-02)
+
+- **Prüfen, Abschnitt „Text“:** erscheint nur bei Vorschlägen mit Abschrift. Er zeigt Qualität vorher → nachher, Seiten, aufgerichtete Seiten, Modell, Rechner, Dauer und die Warnungen. Das Kästchen „Erkannten Text übernehmen“ ist ohne Warnungen angehakt, mit Warnungen nicht. Nur mit Haken schickt „Übernehmen“ den Text mit.
+- **Vergleich (`T` oder Knopf „Vergleichen“):** ersetzt die PDF-Vorschau; die Liste links weicht, damit zwei Spalten Platz haben. Wortweiser Vergleich (längste gemeinsame Teilfolge, Groß-/Kleinschreibung und Satzzeichen egal); sehr lange Texte werden nur noch nach Vorkommen verglichen. Gelb markiert sind Zahlen mit mindestens vier Ziffern, die im alten Text fehlen (dieselbe Regel wie im Backend), und die Stellen aus den IBAN- und Datumswarnungen. So bleibt die lange Zahlenliste bei Seiten auf dem Kopf lesbar.
+- **Den alten Text** liefert `GET /api/suggestions/{id}` als `live_content`, nur wenn ein neuer Text vorgeschlagen ist.
+- **„Text neu erkennen“ (✨):** auf der Prüfkarte, in der Markier-Leiste von Prüfen und im Verlauf. `POST /api/documents/transcribe` verwirft einen offenen Vorschlag, löscht die alte Abschrift und reiht „abschreiben“ mit Vorrang ein; danach folgt das Auslesen. Das geht auch bei gutem Text. Ohne Rechner mit Vision-Modell sind die Knöpfe gesperrt.
+- **Sammel-Übernahme:** schickt jetzt `with_content`; das Backend schreibt den Text nur bei Abschriften ohne Warnungen. Die Markier-Leiste sagt, bei wie vielen der markierten Vorschläge der Text mitgeht.
+- **Übersicht, Kachel „Schwacher Text“:** `GET /api/documents/weak-text` bewertet alle Dokumente und merkt sich das Ergebnis 15 Minuten. Dokumente mit Abschrift oder laufendem Auftrag „abschreiben“ zählen nicht. „Alle einreihen“ lässt sie abschreiben und neu auslesen; sie landen danach in Prüfen.
+- **Rechner & Modelle:** Angabe „Vision (Text vom Bild)“ je Rechner, mit `ollama pull`-Hinweis, wenn das Vision-Modell fehlt.
+- **Abweichung vom Plan:** `GET /api/documents/<id>/quality` gibt es nicht. Die Qualität steht am Vorschlag, und die Übersicht braucht nur die Liste.
+

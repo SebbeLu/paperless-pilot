@@ -20,6 +20,7 @@ export const queryKeys = {
   suggestions: ["suggestions"] as const,
   changes: ["changes"] as const,
   lessons: ["lessons"] as const,
+  weakText: ["weak-text"] as const,
 };
 
 export async function fetchSystemStatus(): Promise<SystemStatus> {
@@ -121,6 +122,28 @@ export function useReextractDocuments() {
   );
 }
 
+/** KI-Funktion: Text mit Vorrang neu vom Bild abschreiben, danach neu auslesen. */
+export function useTranscribeDocuments() {
+  return useSuggestionAction((ids: number[]) =>
+    unwrap(api.POST("/api/documents/transcribe", { body: { ids } })),
+  );
+}
+
+/** Dokumente mit schwachem OCR-Text – das Backend liest dafür den ganzen Bestand. */
+export function useWeakText() {
+  return useQuery({
+    queryKey: queryKeys.weakText,
+    queryFn: () => unwrap(api.GET("/api/documents/weak-text")),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Kann ein Rechner Seiten vom Bild abschreiben? */
+export function useVisionAvailable() {
+  const { data } = useHosts();
+  return data?.some((h) => h.has_vision) ?? false;
+}
+
 export function useRetryJob() {
   const client = useQueryClient();
   return useMutation({
@@ -163,6 +186,8 @@ function useSuggestionAction<T, R>(action: (args: T) => Promise<R>) {
       void client.invalidateQueries({ queryKey: queryKeys.status });
       void client.invalidateQueries({ queryKey: queryKeys.changes });
       void client.invalidateQueries({ queryKey: queryKeys.lookups });
+      void client.invalidateQueries({ queryKey: queryKeys.jobs });
+      void client.invalidateQueries({ queryKey: queryKeys.weakText });
     },
   });
 }
@@ -179,9 +204,10 @@ export function useAcceptSuggestion() {
   );
 }
 
+/** Erkannter Text wird mit übernommen – das Backend schreibt ihn nur, wenn er ohne Warnungen ist. */
 export function useAcceptSuggestions() {
   return useSuggestionAction((ids: number[]) =>
-    unwrap(api.POST("/api/suggestions/accept", { body: { ids, with_content: false } })),
+    unwrap(api.POST("/api/suggestions/accept", { body: { ids, with_content: true } })),
   );
 }
 

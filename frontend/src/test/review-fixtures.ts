@@ -1,6 +1,7 @@
 import { HttpResponse, http } from "msw";
 import type {
   Change,
+  HostState,
   Lookups,
   MetadataValues,
   Suggestion,
@@ -94,12 +95,66 @@ export function suggestion(id: number, overrides: Partial<Suggestion> = {}): Sug
   };
 }
 
+export const OLD_TEXT =
+  "Rechnunq Nr. 4711 ‚„_‚ Betraq 12,00 EUR\nKundennummer 123456 vom 01.02.2024";
+export const NEW_TEXT =
+  "Rechnung Nr. 4711 Betrag 12,00 EUR\nKundennummer 123456 vom 01.02.2024\nIBAN 999999";
+
+/** Vorschlag mit vom Bild abgeschriebenem Text. */
+export function transcribed(id: number, warnings: { code: string; message: string }[] = []) {
+  const base = suggestion(id);
+  return suggestion(id, {
+    proposed: { ...base.proposed, content: NEW_TEXT },
+    transcription: {
+      transcription_id: id,
+      pages: 2,
+      rotated_pages: [2],
+      skipped_pages: 0,
+      quality_before: 0.41,
+      quality_after: 0.93,
+      warnings,
+      model: "gemma4:26b",
+      host: "Mac",
+      duration_seconds: 14.2,
+    },
+  });
+}
+
+/** Rechner, der Seiten vom Bild abschreiben kann – schaltet die Knöpfe „Text neu erkennen“ frei. */
+export const visionHost: HostState = {
+  name: "Mac",
+  url: "http://mac.local:11434",
+  model: "gemma4:26b",
+  vision_model: "gemma4:26b",
+  online: true,
+  version: "0.24.0",
+  models: ["gemma4:26b"],
+  has_model: true,
+  has_vision: true,
+  problem: null,
+  error: null,
+  checked_at: "2026-10-30T12:00:00Z",
+  rules: {
+    paused: false,
+    idle_state: "off",
+    idle_minutes: 10,
+    block_state: "on",
+  },
+  decision: { allowed: true, reason: "Bereit" },
+  entity_states: {},
+  ha_available: false,
+  busy_document_id: null,
+  processed: 0,
+  last_duration_ms: null,
+};
+
 export function detail(s: Suggestion, overrides: Partial<SuggestionDetail> = {}): SuggestionDetail {
   return {
     suggestion: s,
     live: s.current,
     original_file_name: `scan-${s.id}.pdf`,
     changed_since: [],
+    live_content: s.proposed.content != null ? OLD_TEXT : null,
     ...overrides,
   };
 }
@@ -112,6 +167,7 @@ export type ReviewBackend = {
   reextracted: number[];
   reextractedMany: number[][];
   reverted: number[];
+  transcribed: number[][];
 };
 
 export function change(id: number, overrides: Partial<Change> = {}): Change {
@@ -158,12 +214,20 @@ export function reviewHandlers(
     reextracted: [],
     reextractedMany: [],
     reverted: [],
+    transcribed: [],
   };
   const remove = (id: number) => {
     open = open.filter((s) => s.id !== id);
   };
   const handlers = [
     http.get("*/api/taxonomy", () => HttpResponse.json(reviewTaxonomy)),
+    http.get("*/api/hosts", () => HttpResponse.json([visionHost])),
+    http.post("*/api/documents/transcribe", async ({ request }) => {
+      const { ids } = (await request.json()) as { ids: number[] };
+      backend.transcribed.push(ids);
+      open = open.filter((s) => !ids.includes(s.document_id));
+      return HttpResponse.json({ enqueued: ids, failed: [] });
+    }),
     http.get("*/api/paperless/lookups", () => HttpResponse.json(lookups)),
     http.get("*/api/suggestions", () => HttpResponse.json(open)),
     http.get("*/api/suggestions/:id", ({ params }) => {

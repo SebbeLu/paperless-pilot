@@ -127,6 +127,14 @@ class JobRepository:
             status = (await conn.execute(query)).scalar()
             return JobStatus(status) if status else None
 
+    async def active_documents(self, kind: JobKind) -> set[int]:
+        """Dokumente mit wartendem oder laufendem Auftrag dieser Art."""
+        query = select(t.jobs.c.document_id).where(
+            t.jobs.c.kind == kind, t.jobs.c.status.in_(ACTIVE_STATUSES)
+        )
+        async with self._engine.connect() as conn:
+            return set((await conn.execute(query)).scalars())
+
     async def complete(self, job_id: int, now: datetime) -> None:
         await self._set(job_id, now, status=JobStatus.SUCCEEDED, last_error=None)
 
@@ -468,6 +476,10 @@ class TranscriptionRepository:
         async with self._engine.connect() as conn:
             row = (await conn.execute(query)).first()
             return _transcription(row) if row else None
+
+    async def document_ids(self) -> set[int]:
+        async with self._engine.connect() as conn:
+            return set((await conn.execute(select(t.transcriptions.c.document_id))).scalars())
 
     async def remove(self, document_id: int) -> None:
         async with self._engine.begin() as conn:

@@ -25,6 +25,9 @@ export type DocumentFailure = Schemas["DocumentFailure"];
 export type DocumentState = Schemas["DocumentState"];
 export type Lesson = Schemas["Lesson"];
 export type NamedValues = Schemas["NamedValues"];
+export type TranscriptionSummary = Schemas["TranscriptionSummary"];
+export type TranscriptionWarning = Schemas["TranscriptionWarning"];
+export type WeakText = Schemas["WeakText"];
 
 export const api = createClient<paths>({
   baseUrl: globalThis.location?.origin ?? "",

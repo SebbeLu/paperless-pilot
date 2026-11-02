@@ -69,6 +69,19 @@ describe("Rechner & Modelle", () => {
     expect(screen.getByText("on")).toBeInTheDocument();
   });
 
+  it("zeigt, ob ein Rechner Text vom Bild abschreiben kann", async () => {
+    serve([
+      { ...base, vision_model: "gemma4:26b" },
+      { ...base, name: "PC", vision_model: "llava:13b", has_vision: false },
+    ]);
+    renderApp("/rechner");
+
+    // Modell auf beiden Rechnern, Vision-Modell nur auf dem Mac
+    expect(await screen.findAllByText("gemma4:26b", { selector: "dd" })).toHaveLength(3);
+    expect(screen.getByText("nein")).toBeInTheDocument();
+    expect(screen.getByText("ollama pull llava:13b")).toBeInTheDocument();
+  });
+
   it("pausiert und speichert Regeln", async () => {
     const backend = serve([base]);
     renderApp("/rechner");

@@ -499,6 +499,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/transcribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transcribe
+         * @description Text mit Vorrang neu vom Bild abschreiben lassen, danach neu auslesen.
+         */
+        post: operations["transcribe_api_documents_transcribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/weak-text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Weak Text
+         * @description Dokumente mit schwachem OCR-Text ohne Abschrift – liest beim ersten Aufruf alle Dokumente.
+         */
+        get: operations["weak_text_api_documents_weak_text_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{document_id}/{kind}": {
         parameters: {
             query?: never;
@@ -1149,6 +1189,8 @@ export interface components {
             original_file_name: string;
             /** Changed Since */
             changed_since: string[];
+            /** Live Content */
+            live_content?: string | null;
         };
         /**
          * SuggestionStatus
@@ -1305,6 +1347,23 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * WeakText
+         * @description Dokumente, deren OCR-Text unter der Schwelle liegt und die noch keine Abschrift haben.
+         */
+        WeakText: {
+            /** Document Ids */
+            document_ids: number[];
+            /** Threshold */
+            threshold: number;
+            /** Vision Available */
+            vision_available: boolean;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
         };
     };
     responses: never;
@@ -2037,6 +2096,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReextractDocumentsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transcribe_api_documents_transcribe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentIdsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReextractDocumentsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    weak_text_api_documents_weak_text_get: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeakText"];
                 };
             };
             /** @description Validation Error */

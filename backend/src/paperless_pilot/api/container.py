@@ -33,7 +33,11 @@ from paperless_pilot.application.processing import JobProcessor, Scheduler
 from paperless_pilot.application.review import ReviewService
 from paperless_pilot.application.system_status import SystemStatusService
 from paperless_pilot.application.taxonomy import TaxonomyService
-from paperless_pilot.application.transcription import TranscriptionService, VisionOcr
+from paperless_pilot.application.transcription import (
+    TranscriptionService,
+    VisionOcr,
+    WeakTextScan,
+)
 from paperless_pilot.config import Settings
 from paperless_pilot.domain.clock import Clock, SystemClock
 from paperless_pilot.domain.ports import (
@@ -74,6 +78,7 @@ class Container:
     extraction: ExtractionService
     transcriptions: TranscriptionRepository
     vision: VisionOcr
+    weak_text: WeakTextScan
     intake: IntakeService
     scheduler: Scheduler
     review: ReviewService
@@ -190,6 +195,14 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
             extraction=extraction,
             transcriptions=transcriptions,
             vision=vision,
+            weak_text=WeakTextScan(
+                paperless,
+                transcriptions,
+                jobs,
+                registry,
+                clock,
+                threshold=settings.ocr_quality_threshold,
+            ),
             intake=IntakeService(paperless, jobs, taxonomy_repository, clock, events),
             scheduler=Scheduler(
                 registry,
@@ -200,7 +213,15 @@ async def build_container(settings: Settings, adapters: Adapters) -> AsyncIterat
                 lease_for=timedelta(seconds=settings.llm_timeout_seconds + 120),
             ),
             review=ReviewService(
-                paperless, suggestions, changes, jobs, taxonomy_repository, lessons, clock, events
+                paperless,
+                suggestions,
+                changes,
+                jobs,
+                taxonomy_repository,
+                lessons,
+                clock,
+                events,
+                transcriptions=transcriptions,
             ),
             history=HistoryService(paperless, changes, suggestions, lessons, clock, events),
             lessons=lessons,

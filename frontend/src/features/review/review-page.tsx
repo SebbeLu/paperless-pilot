@@ -21,6 +21,8 @@ import {
   useSuggestions,
   useSystemStatus,
   useTaxonomy,
+  useTranscribeDocuments,
+  useVisionAvailable,
 } from "@/api/queries";
 import { AiIcon } from "@/components/ai-icon";
 import { PageHeader } from "@/components/page-header";
@@ -29,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ReviewForm } from "./review-form";
+import { TextCompare, TextSection } from "./text-section";
 
 export function ReviewPage() {
   const { data: suggestions, error, isPending } = useSuggestions();
@@ -42,13 +45,19 @@ export function ReviewPage() {
     items: [],
   });
   const [requeued, setRequeued] = useState(0);
+  const [requeuedText, setRequeuedText] = useState(false);
   const [rejected, setRejected] = useState(0);
   const [marked, setMarked] = useState<ReadonlySet<number>>(new Set());
   const revert = useRevertChange();
   const acceptMany = useAcceptSuggestions();
   const reextractMany = useReextractSuggestions();
   const rejectMany = useRejectSuggestions();
-  const bulkBusy = acceptMany.isPending || reextractMany.isPending || rejectMany.isPending;
+  const transcribeMany = useTranscribeDocuments();
+  const bulkBusy =
+    acceptMany.isPending ||
+    reextractMany.isPending ||
+    rejectMany.isPending ||
+    transcribeMany.isPending;
   const undo = useCallback(async () => {
     if (!lastChanges.length || revert.isPending) return;
     for (const [n, change] of lastChanges.entries()) {
@@ -98,8 +107,30 @@ export function ReviewPage() {
       {
         onSuccess: (result) => {
           setRequeued(result.reextracted.length);
+          setRequeuedText(false);
           setRejected(0);
           afterBulk("neu ausgelesen", result.failed);
+        },
+      },
+    );
+  };
+  const transcribeMarked = () => {
+    if (!markedItems.length || bulkBusy) return;
+    transcribeMany.mutate(
+      markedItems.map((s) => s.document_id),
+      {
+        onSuccess: (result) => {
+          setRequeued(result.enqueued.length);
+          setRequeuedText(true);
+          setRejected(0);
+          // Fehler hängen hier am Dokument, die Liste zeigt Vorschläge
+          afterBulk(
+            "neu erkannt",
+            result.failed.flatMap((f) => {
+              const item = markedItems.find((s) => s.document_id === f.document_id);
+              return item ? [{ suggestion_id: item.id, message: f.message }] : [];
+            }),
+          );
         },
       },
     );
@@ -123,6 +154,13 @@ export function ReviewPage() {
     list.findIndex((s) => s.id === selectedId),
   );
   const current = list[index] ?? null;
+  // Textvergleich statt Vorschau – gilt nur für den gerade gezeigten Vorschlag
+  const [comparing, setComparing] = useState<number | null>(null);
+  const currentDetail = useSuggestion(current?.id ?? null);
+  const compareText =
+    current && comparing === current.id && current.transcription && current.proposed.content
+      ? { summary: current.transcription, text: current.proposed.content }
+      : null;
 
   // Auswahl bleibt an derselben Position, wenn der aktuelle Vorschlag verschwindet.
   const lastIndex = useRef(0);
@@ -181,8 +219,9 @@ export function ReviewPage() {
       )}
       {requeued > 0 && (
         <Alert className="mb-4">
-          {requeued === 1 ? "1 Dokument wird" : `${requeued} Dokumente werden`} mit Vorrang neu
-          ausgelesen. Die neuen Vorschläge erscheinen hier, sobald ein Rechner sie bearbeitet hat.
+          {requeued === 1 ? "1 Dokument wird" : `${requeued} Dokumente werden`} mit Vorrang{" "}
+          {requeuedText ? "neu vom Bild abgeschrieben und ausgelesen" : "neu ausgelesen"}. Die neuen
+          Vorschläge erscheinen hier, sobald ein Rechner sie bearbeitet hat.
         </Alert>
       )}
       {rejected > 0 && (
@@ -208,7 +247,7 @@ export function ReviewPage() {
           </ul>
         </Alert>
       )}
-      {[acceptMany.error, reextractMany.error, rejectMany.error].map(
+      {[acceptMany.error, reextractMany.error, rejectMany.error, transcribeMany.error].map(
         (err) =>
           err && (
             <Alert key={err.message} tone="danger" className="mb-4">
@@ -228,18 +267,38 @@ export function ReviewPage() {
           onAccept={acceptMarked}
           onReextract={reextractMarked}
           onReject={rejectMarked}
+          onTranscribe={transcribeMarked}
         />
       )}
       {current && (
-        <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)_24rem]">
-          <SuggestionList
-            items={list}
-            selected={current.id}
-            marked={marked}
-            onSelect={setSelectedId}
-            onToggle={toggle}
-          />
-          <Preview documentId={current.document_id} />
+        <div
+          className={cn(
+            "grid gap-4",
+            // Der Vergleich braucht Platz für zwei Spalten – die Liste weicht so lange
+            compareText
+              ? "lg:grid-cols-[minmax(0,1fr)_24rem]"
+              : "lg:grid-cols-[15rem_minmax(0,1fr)_24rem]",
+          )}
+        >
+          {!compareText && (
+            <SuggestionList
+              items={list}
+              selected={current.id}
+              marked={marked}
+              onSelect={setSelectedId}
+              onToggle={toggle}
+            />
+          )}
+          {compareText ? (
+            <TextCompare
+              oldText={currentDetail.data?.live_content}
+              newText={compareText.text}
+              summary={compareText.summary}
+              onClose={() => setComparing(null)}
+            />
+          ) : (
+            <Preview documentId={current.document_id} />
+          )}
           <Review
             key={current.id}
             suggestion={current}
@@ -249,6 +308,8 @@ export function ReviewPage() {
             onToggleHelp={() => setShowHelp((v) => !v)}
             marked={marked.has(current.id)}
             onToggleMark={() => toggle(current.id)}
+            comparing={comparing === current.id}
+            onToggleCompare={() => setComparing((c) => (c === current.id ? null : current.id))}
             onAccepted={(change) => {
               setLastChanges([change]);
               setFailed({ verb: "", items: [] });
@@ -277,6 +338,7 @@ function BulkBar({
   onAccept,
   onReextract,
   onReject,
+  onTranscribe,
 }: {
   items: Suggestion[];
   marked: Suggestion[];
@@ -285,7 +347,9 @@ function BulkBar({
   onAccept: () => void;
   onReextract: () => void;
   onReject: () => void;
+  onTranscribe: () => void;
 }) {
+  const vision = useVisionAvailable();
   const all = useRef<HTMLInputElement>(null);
   // Verwerfen lässt sich nicht rückgängig machen – daher erst nachfragen
   const [confirming, setConfirming] = useState(false);
@@ -298,6 +362,8 @@ function BulkBar({
     if (all.current) all.current.indeterminate = some;
   }, [some]);
   const withWarnings = marked.filter((s) => warningsOf(s) > 0).length;
+  const withText = marked.filter((s) => s.proposed.content != null);
+  const textWritten = withText.filter((s) => !s.transcription?.warnings.length).length;
   return (
     <Card className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
       <label className="flex items-center gap-2 text-sm font-medium">
@@ -314,6 +380,8 @@ function BulkBar({
         {marked.length
           ? `${marked.length} markiert${withWarnings ? `, davon ${withWarnings} mit Hinweisen` : ""}`
           : "Markieren mit X oder dem Kästchen in der Liste"}
+        {withText.length > 0 &&
+          ` · erkannter Text wird bei ${textWritten} von ${withText.length} mit übernommen (nur ohne Warnungen)`}
       </span>
       <span className="ml-auto flex flex-wrap gap-2">
         {confirming ? (
@@ -341,6 +409,18 @@ function BulkBar({
             {count === 0 ? "Markierte verwerfen" : `${count} verwerfen`}
           </Button>
         )}
+        <Button
+          onClick={onTranscribe}
+          disabled={busy || count === 0 || !vision}
+          title={
+            vision
+              ? "KI-Funktion: Text der markierten Dokumente mit Vorrang neu vom Bild abschreiben und danach neu auslesen"
+              : "Kein Rechner mit Vision-Modell erreichbar"
+          }
+        >
+          <AiIcon />
+          {count === 0 ? "Markierte Text neu erkennen" : `${count} Text neu erkennen`}
+        </Button>
         <Button
           onClick={onReextract}
           disabled={busy || marked.length === 0}
@@ -448,6 +528,8 @@ function Review({
   onToggleMark,
   onAccepted,
   onUndo,
+  comparing,
+  onToggleCompare,
 }: {
   suggestion: Suggestion;
   position: string;
@@ -458,6 +540,8 @@ function Review({
   onToggleMark: () => void;
   onAccepted: (change: Change) => void;
   onUndo: () => void;
+  comparing: boolean;
+  onToggleCompare: () => void;
 }) {
   const detail = useSuggestion(suggestion.id);
   const taxonomy = useTaxonomy();
@@ -465,24 +549,32 @@ function Review({
   const accept = useAcceptSuggestion();
   const reject = useRejectSuggestion();
   const reextract = useReextractSuggestion();
+  const transcribe = useTranscribeDocuments();
+  const vision = useVisionAvailable();
   const [values, setValues] = useState<MetadataValues>(suggestion.proposed);
+  const transcription = suggestion.proposed.content != null ? suggestion.transcription : null;
+  // Mit Warnungen erst nach einem Blick in den Vergleich ankreuzen
+  const [applyText, setApplyText] = useState(
+    transcription != null && transcription.warnings.length === 0,
+  );
   const formRef = useRef<HTMLFormElement>(null);
 
   const conflict =
     accept.error instanceof ApiError && accept.error.status === 409 ? accept.error : null;
-  const busy = accept.isPending || reject.isPending || reextract.isPending;
+  const busy = accept.isPending || reject.isPending || reextract.isPending || transcribe.isPending;
   const live = detail.data?.live ?? suggestion.current;
 
   const doAccept = useCallback(
     (force = false) => {
-      // Den Text vom Bild schreibt erst das Kästchen im Abschnitt „Text“ (Vision-OCR, 2.5)
+      // Den Text vom Bild schreibt nur das Kästchen im Abschnitt „Text“
+      const content = (applyText && transcription && values.content) || null;
       if (!busy)
         accept.mutate(
-          { id: suggestion.id, values: { ...values, content: null }, force },
+          { id: suggestion.id, values: { ...values, content }, force },
           { onSuccess: onAccepted },
         );
     },
-    [accept, busy, suggestion.id, values, onAccepted],
+    [accept, busy, suggestion.id, values, onAccepted, applyText, transcription],
   );
 
   useReviewKeys({
@@ -501,6 +593,7 @@ function Review({
     onUndo,
     onMark: onToggleMark,
     onReextract: () => !busy && reextract.mutate(suggestion.id),
+    onCompare: () => transcription && onToggleCompare(),
   });
 
   const changedSince = detail.data?.changed_since ?? [];
@@ -565,6 +658,16 @@ function Review({
           <p className="text-sm text-zinc-500">Lädt Auswahllisten …</p>
         )}
 
+        {transcription && (
+          <TextSection
+            summary={transcription}
+            apply={applyText}
+            onApplyChange={setApplyText}
+            comparing={comparing}
+            onToggleCompare={onToggleCompare}
+          />
+        )}
+
         {conflict && (
           <Alert tone="warning" className="flex-col">
             <span>{conflict.message}.</span>
@@ -579,7 +682,7 @@ function Review({
             </span>
           </Alert>
         )}
-        {[accept.error, reject.error, reextract.error].map(
+        {[accept.error, reject.error, reextract.error, transcribe.error].map(
           (err) =>
             err &&
             err !== conflict && (
@@ -605,6 +708,19 @@ function Review({
             <AiIcon />
             Neu auslesen <kbd className="ml-1 text-xs opacity-70">N</kbd>
           </Button>
+          <Button
+            size="md"
+            onClick={() => transcribe.mutate([suggestion.document_id])}
+            disabled={busy || !vision}
+            title={
+              vision
+                ? "KI-Funktion: Text mit Vorrang neu vom Bild abschreiben, danach neu auslesen"
+                : "Kein Rechner mit Vision-Modell erreichbar"
+            }
+          >
+            <AiIcon />
+            Text neu erkennen
+          </Button>
         </div>
       </form>
     </Card>
@@ -621,10 +737,11 @@ type KeyHandlers = {
   onUndo: () => void;
   onMark: () => void;
   onReextract: () => void;
+  onCompare: () => void;
 };
 
 /** J/K blättern, Enter übernimmt, R verwirft, E springt ins erste unsichere Feld, Z rückgängig,
- * N liest neu aus, X markiert. */
+ * N liest neu aus, X markiert, T vergleicht den erkannten Text. */
 export function useReviewKeys(handlers: KeyHandlers) {
   const ref = useRef(handlers);
   ref.current = handlers;
@@ -648,6 +765,7 @@ export function useReviewKeys(handlers: KeyHandlers) {
           z: ref.current.onUndo,
           x: ref.current.onMark,
           n: ref.current.onReextract,
+          t: ref.current.onCompare,
           "?": ref.current.onHelp,
           Enter: ref.current.onAccept,
         } as Record<string, (() => void) | undefined>
@@ -670,6 +788,7 @@ function KeyboardHelp() {
     ["N", "Neu auslesen lassen"],
     ["E", "Ins erste unsichere Feld springen"],
     ["X", "Markieren für die Sammel-Übernahme"],
+    ["T", "Erkannten Text mit dem bisherigen vergleichen"],
     ["Z", "Letzte Übernahme rückgängig"],
     ["Esc", "Feld verlassen"],
     ["?", "Diese Hilfe"],

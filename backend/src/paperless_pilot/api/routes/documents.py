@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 from paperless_pilot.api.deps import ContainerDep
 from paperless_pilot.application.review import ReextractDocumentsResult
+from paperless_pilot.application.transcription import WeakText
+from paperless_pilot.domain.jobs import JobKind
 from paperless_pilot.domain.models import FileKind
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -25,6 +27,22 @@ async def reextract(
     result = await container.review.reextract_documents(request.ids)
     container.scheduler.wake()
     return result
+
+
+@router.post("/transcribe")
+async def transcribe(
+    request: DocumentIdsRequest, container: ContainerDep
+) -> ReextractDocumentsResult:
+    """Text mit Vorrang neu vom Bild abschreiben lassen, danach neu auslesen."""
+    result = await container.review.reextract_documents(request.ids, JobKind.TRANSCRIBE)
+    container.scheduler.wake()
+    return result
+
+
+@router.get("/weak-text")
+async def weak_text(container: ContainerDep, refresh: bool = False) -> WeakText:
+    """Dokumente mit schwachem OCR-Text ohne Abschrift – liest beim ersten Aufruf alle Dokumente."""
+    return await container.weak_text.get(refresh=refresh)
 
 
 @router.get("/{document_id}/{kind}", response_class=Response)

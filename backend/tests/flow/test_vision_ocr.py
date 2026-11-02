@@ -3,6 +3,7 @@ from datetime import timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from paperless_pilot.application.transcription import WeakTextScan
 from paperless_pilot.domain.errors import (
     ConflictError,
     LlmHostUnavailableError,
@@ -202,6 +203,12 @@ async def test_suggestion_carries_transcription(p: Pipeline) -> None:
     assert (summary.model, summary.host, summary.pages) == ("gemma4:26b", "Mac", 1)
 
 
+async def test_detail_shows_paperless_text_for_comparison(p: Pipeline) -> None:
+    suggestion = await transcribed_suggestion(p)
+
+    assert (await p.review.detail(suggestion.id)).live_content == GARBAGE
+
+
 async def test_accept_writes_content_and_revert_restores_it(p: Pipeline) -> None:
     suggestion = await transcribed_suggestion(p)
 
@@ -266,3 +273,56 @@ async def test_accept_many_leaves_text_alone_unless_asked(p: Pipeline) -> None:
     await p.review.accept_many([suggestion.id])
 
     assert p.paperless.documents[1].content == GARBAGE
+
+
+async def test_retranscribe_replaces_transcription_and_suggestion(p: Pipeline) -> None:
+    old = await transcribed_suggestion(p)
+    p.hosts[0].replies += ["Neu gelesen: Rechnung Bürostuhl 2024", answer()]
+
+    result = await p.review.reextract_documents([1], JobKind.TRANSCRIBE)
+
+    assert result.enqueued == [1]
+    assert await p.transcriptions.for_document(1) is None
+    superseded = await p.suggestions.get(old.id)
+    assert superseded is not None
+    assert superseded.note == "Text neu erkennen"
+    assert await p.jobs.active_documents(JobKind.TRANSCRIBE) == {1}
+
+    assert await p.scheduler.run_once("Mac")  # abschreiben
+    assert await p.scheduler.run_once("Mac")  # auslesen
+    [suggestion] = await p.suggestions.list()
+    assert suggestion.proposed.content == "Neu gelesen: Rechnung Bürostuhl 2024"
+
+
+async def test_retranscribe_works_for_documents_with_good_text(p: Pipeline) -> None:
+    p.hosts[0].replies += [INVOICE_TEXT, answer()]
+
+    await p.review.reextract_documents([2], JobKind.TRANSCRIBE)
+    assert await p.scheduler.run_once("Mac")
+    assert await p.scheduler.run_once("Mac")
+
+    stored = await p.transcriptions.for_document(2)
+    assert stored is not None
+    assert await jobs_of(p) == [
+        (JobKind.TRANSCRIBE, JobStatus.SUCCEEDED),
+        (JobKind.EXTRACT, JobStatus.SUCCEEDED),
+    ]
+
+
+async def test_weak_text_scan_lists_documents_without_transcription(p: Pipeline) -> None:
+    scan = WeakTextScan(p.paperless, p.transcriptions, p.jobs, p.registry, p.clock, threshold=0.68)
+
+    p.paperless.edit(3, content=INVOICE_TEXT)
+    first = await scan.get()
+    assert first.document_ids == [1]
+    assert first.vision_available
+
+    await p.jobs.enqueue(1, JobKind.TRANSCRIBE, p.clock.now())
+    assert (await scan.get()).document_ids == []  # wird gerade abgeschrieben
+
+    p.paperless.edit(2, content=GARBAGE)
+    assert (await scan.get()).document_ids == []  # zwischengespeichert
+    p.clock.advance(minutes=16)
+    assert (await scan.get()).document_ids == [2]
+    p.paperless.edit(2, content=INVOICE_TEXT)
+    assert (await scan.get(refresh=True)).document_ids == []

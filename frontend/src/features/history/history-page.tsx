@@ -8,7 +8,14 @@ import {
   type DocumentState,
   type Lookups,
 } from "@/api/client";
-import { useChanges, useLookups, useReextractDocuments, useRevertChange } from "@/api/queries";
+import {
+  useChanges,
+  useLookups,
+  useReextractDocuments,
+  useRevertChange,
+  useTranscribeDocuments,
+  useVisionAvailable,
+} from "@/api/queries";
 import { AiIcon } from "@/components/ai-icon";
 import { PageHeader } from "@/components/page-header";
 import { Alert } from "@/components/ui/alert";
@@ -25,10 +32,14 @@ export function HistoryPage() {
   const changes = data?.pages.flat() ?? [];
   // Markiert werden Dokumente – mehrere Einträge desselben Dokuments teilen sich das Kästchen
   const [marked, setMarked] = useState<ReadonlySet<number>>(new Set());
-  const [result, setResult] = useState<{ enqueued: number; failed: DocumentFailure[] } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    enqueued: number;
+    failed: DocumentFailure[];
+    text: boolean;
+  } | null>(null);
   const reextract = useReextractDocuments();
+  const transcribe = useTranscribeDocuments();
+  const busy = reextract.isPending || transcribe.isPending;
   const documentIds = [...new Set(changes.map((c) => c.document_id))];
   const toggle = useCallback((id: number) => {
     setMarked((prev) => {
@@ -37,11 +48,11 @@ export function HistoryPage() {
       return next;
     });
   }, []);
-  const reextractMarked = () => {
-    if (!marked.size || reextract.isPending) return;
-    reextract.mutate([...marked], {
+  const requeueMarked = (text: boolean) => {
+    if (!marked.size || busy) return;
+    (text ? transcribe : reextract).mutate([...marked], {
       onSuccess: (r) => {
-        setResult({ enqueued: r.enqueued.length, failed: r.failed });
+        setResult({ enqueued: r.enqueued.length, failed: r.failed, text });
         setMarked(new Set(r.failed.map((f) => f.document_id)));
       },
     });
@@ -57,7 +68,8 @@ export function HistoryPage() {
         <Alert className="mb-4 flex-wrap justify-between">
           <span>
             {result.enqueued === 1 ? "1 Dokument wird" : `${result.enqueued} Dokumente werden`} mit
-            Vorrang neu ausgelesen. Die neuen Vorschläge erscheinen unter Prüfen.
+            Vorrang {result.text ? "neu vom Bild abgeschrieben und ausgelesen" : "neu ausgelesen"}.
+            Die neuen Vorschläge erscheinen unter Prüfen.
           </span>
           <Link
             to="/pruefen"
@@ -69,7 +81,7 @@ export function HistoryPage() {
       )}
       {result && result.failed.length > 0 && (
         <Alert tone="warning" className="mb-4 flex-col">
-          <span>Nicht neu ausgelesen, bleibt markiert:</span>
+          <span>Nicht eingereiht, bleibt markiert:</span>
           <ul className="list-disc pl-5">
             {result.failed.map((f) => (
               <li key={f.document_id}>
@@ -79,18 +91,22 @@ export function HistoryPage() {
           </ul>
         </Alert>
       )}
-      {reextract.error && (
-        <Alert tone="danger" className="mb-4">
-          {reextract.error.message}
-        </Alert>
+      {[reextract.error, transcribe.error].map(
+        (err) =>
+          err && (
+            <Alert key={err.message} tone="danger" className="mb-4">
+              {err.message}
+            </Alert>
+          ),
       )}
       {changes.length > 0 && (
         <SelectionBar
           total={documentIds.length}
           marked={marked.size}
-          busy={reextract.isPending}
+          busy={busy}
           onMarkAll={(all) => setMarked(new Set(all ? documentIds : []))}
-          onReextract={reextractMarked}
+          onReextract={() => requeueMarked(false)}
+          onTranscribe={() => requeueMarked(true)}
         />
       )}
       {error && <Alert tone="danger">{error.message}</Alert>}
@@ -129,13 +145,16 @@ function SelectionBar({
   busy,
   onMarkAll,
   onReextract,
+  onTranscribe,
 }: {
   total: number;
   marked: number;
   busy: boolean;
   onMarkAll: (all: boolean) => void;
   onReextract: () => void;
+  onTranscribe: () => void;
 }) {
+  const vision = useVisionAvailable();
   const all = useRef<HTMLInputElement>(null);
   const some = marked > 0 && marked < total;
   useEffect(() => {
@@ -160,6 +179,18 @@ function SelectionBar({
       </span>
       <Button
         className="ml-auto"
+        onClick={onTranscribe}
+        disabled={busy || marked === 0 || !vision}
+        title={
+          vision
+            ? "KI-Funktion: Text mit Vorrang neu vom Bild abschreiben, danach neu auslesen; neue Vorschläge kommen unter Prüfen"
+            : "Kein Rechner mit Vision-Modell erreichbar"
+        }
+      >
+        <AiIcon />
+        {marked === 0 ? "Markierte Text neu erkennen" : `${marked} Text neu erkennen`}
+      </Button>
+      <Button
         onClick={onReextract}
         disabled={busy || marked === 0}
         title="KI-Funktion: Dokumente mit Vorrang noch einmal auslesen; neue Vorschläge kommen unter Prüfen"

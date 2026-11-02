@@ -1,6 +1,8 @@
 """Vision-OCR: Seiten vom Bild abschreiben lassen, wenn der OCR-Text von Paperless schlecht ist."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+
+from pydantic import BaseModel
 
 from paperless_pilot.adapters.db.repositories import JobRepository, TranscriptionRepository
 from paperless_pilot.application.hosts import HostRegistry
@@ -146,3 +148,56 @@ class VisionOcr:
             job.document_id, self._registry.host(host_name), self._model
         )
         return await self._transcriptions.save(result, self._clock.now())
+
+
+class WeakText(BaseModel):
+    """Dokumente, deren OCR-Text unter der Schwelle liegt und die noch keine Abschrift haben."""
+
+    document_ids: list[int]
+    threshold: float
+    vision_available: bool
+    checked_at: datetime
+
+
+class WeakTextScan:
+    """Bewertet den Text aller Dokumente. Liest den ganzen Bestand, daher zwischengespeichert."""
+
+    def __init__(
+        self,
+        paperless: DocumentRepository,
+        transcriptions: TranscriptionRepository,
+        jobs: JobRepository,
+        registry: HostRegistry,
+        clock: Clock,
+        *,
+        threshold: float,
+        max_age: timedelta = timedelta(minutes=15),
+    ) -> None:
+        self._paperless = paperless
+        self._transcriptions = transcriptions
+        self._jobs = jobs
+        self._registry = registry
+        self._clock = clock
+        self._threshold = threshold
+        self._max_age = max_age
+        self._weak: list[int] | None = None
+        self._checked_at = clock.now()
+
+    async def get(self, *, refresh: bool = False) -> WeakText:
+        now = self._clock.now()
+        if refresh or self._weak is None or now - self._checked_at > self._max_age:
+            self._weak = [
+                d.id
+                async for d in self._paperless.iter_documents()
+                if assess_ocr(d.content, d.page_count).score < self._threshold
+            ]
+            self._checked_at = now
+        # Was inzwischen abgeschrieben ist oder gerade abgeschrieben wird, zählt nicht mehr
+        done = await self._transcriptions.document_ids()
+        done |= await self._jobs.active_documents(JobKind.TRANSCRIBE)
+        return WeakText(
+            document_ids=[i for i in self._weak if i not in done],
+            threshold=self._threshold,
+            vision_available=self._registry.vision_available(),
+            checked_at=self._checked_at,
+        )

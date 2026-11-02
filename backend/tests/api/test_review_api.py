@@ -113,6 +113,24 @@ async def test_reextract_documents(ready: Api) -> None:
     assert (await ready.client.get("/api/suggestions")).json() == []
 
 
+async def test_transcribe_documents(ready: Api) -> None:
+    response = await ready.client.post("/api/documents/transcribe", json={"ids": [1]})
+
+    assert response.json() == {"enqueued": [1], "failed": []}
+    jobs = (await ready.client.get("/api/jobs", params={"status": "queued"})).json()
+    assert {(j["document_id"], j["kind"]) for j in jobs} >= {(1, "transcribe")}
+
+
+async def test_weak_text_lists_documents(api: Api) -> None:
+    api.paperless.documents[3] = document(3)
+    api.paperless.edit(3, content="")
+
+    body = (await api.client.get("/api/documents/weak-text")).json()
+
+    assert body["document_ids"] == [3]
+    assert body["threshold"] == pytest.approx(0.68)
+
+
 async def test_unknown_suggestion_is_404(api: Api) -> None:
     assert (await api.client.get("/api/suggestions/42")).status_code == 404
 

@@ -1022,6 +1022,92 @@
         }
       }
     },
+    "/api/documents/transcribe": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Transcribe",
+        "description": "Text mit Vorrang neu vom Bild abschreiben lassen, danach neu auslesen.",
+        "operationId": "transcribe_api_documents_transcribe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentIdsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReextractDocumentsResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/weak-text": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Weak Text",
+        "description": "Dokumente mit schwachem OCR-Text ohne Abschrift – liest beim ersten Aufruf alle Dokumente.",
+        "operationId": "weak_text_api_documents_weak_text_get",
+        "parameters": [
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Refresh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeakText"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/{kind}": {
       "get": {
         "tags": [
@@ -2621,6 +2707,17 @@
             },
             "type": "array",
             "title": "Changed Since"
+          },
+          "live_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Content"
           }
         },
         "type": "object",
@@ -2970,6 +3067,39 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WeakText": {
+        "properties": {
+          "document_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Document Ids"
+          },
+          "threshold": {
+            "type": "number",
+            "title": "Threshold"
+          },
+          "vision_available": {
+            "type": "boolean",
+            "title": "Vision Available"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Checked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_ids",
+          "threshold",
+          "vision_available",
+          "checked_at"
+        ],
+        "title": "WeakText",
+        "description": "Dokumente, deren OCR-Text unter der Schwelle liegt und die noch keine Abschrift haben."
       }
     }
   }

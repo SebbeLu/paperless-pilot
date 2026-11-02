@@ -11,15 +11,25 @@ Bearbeitet Dokumente in [Paperless-ngx](https://docs.paperless-ngx.com/) automat
 
 | Bereich | Was er tut |
 |---|---|
-| **Übersicht** | Kennzahlen (Dokumente, Posteingang, zu prüfen, wartend, Fehler), „Posteingang einreihen“, Verbindungsstatus |
-| **Prüfen** | Liste mit unsicheren Vorschlägen zuerst, PDF-Vorschau, Formular mit bisherigem Wert, Vorschlag, Prüfergebnis und Belegzitat; „Neu auslesen“ verwirft einen Vorschlag und liest das Dokument mit Vorrang noch einmal aus; mehrere oder alle Vorschläge markieren und gemeinsam unverändert übernehmen (Konflikte bleiben offen), neu auslesen oder nach Rückfrage verwerfen; Bedienung per Tastatur |
-| **Verlauf** | Jede Schreibaktion mit Vorher→Nachher und Rückgängig (mit Konfliktprüfung); Dokumente markieren und mit Vorrang neu auslesen lassen, die neuen Vorschläge kommen unter Prüfen |
+| **Übersicht** | Kennzahlen (Dokumente, Posteingang, zu prüfen, wartend, Fehler), „Posteingang einreihen“, Kachel „Schwacher Text“ mit „Alle einreihen“ zum Abschreiben vom Bild, Verbindungsstatus |
+| **Prüfen** | Liste mit unsicheren Vorschlägen zuerst, PDF-Vorschau, Formular mit bisherigem Wert, Vorschlag, Prüfergebnis und Belegzitat; „Neu auslesen“ verwirft einen Vorschlag und liest das Dokument mit Vorrang noch einmal aus; mehrere oder alle Vorschläge markieren und gemeinsam unverändert übernehmen (Konflikte bleiben offen), neu auslesen oder nach Rückfrage verwerfen; Abschnitt „Text“ für vom Bild abgeschriebenen Text (siehe unten); Bedienung per Tastatur |
+| **Verlauf** | Jede Schreibaktion mit Vorher→Nachher und Rückgängig (mit Konfliktprüfung); Dokumente markieren und mit Vorrang neu auslesen oder ihren Text neu erkennen lassen, die neuen Vorschläge kommen unter Prüfen |
 | **Regeln** | Taxonomie: Dokumenttypen, Personen (mit Aliasen), Lebensbereiche, Status-Tags; Abgleich mit Paperless, Import/Export; gelernte Korrekturen ansehen und vergessen |
-| **Rechner & Modelle** | Status je Ollama-Rechner mit Begründung („Wartet: Rechner wird benutzt, Zeitfenster ab 20:00“), Pause, Zeitfenster, Leerlauf und Sperre über Home Assistant |
+| **Rechner & Modelle** | Status je Ollama-Rechner mit Begründung („Wartet: Rechner wird benutzt, Zeitfenster ab 20:00“), Pause, Zeitfenster, Leerlauf und Sperre über Home Assistant; ob der Rechner Text vom Bild abschreiben kann (Vision-Modell) |
 
-Knöpfe mit dem Funkel-Symbol (✨) lassen das Sprachmodell arbeiten, etwa „Neu auslesen“ und „Posteingang einreihen“.
+Knöpfe mit dem Funkel-Symbol (✨) lassen das Sprachmodell arbeiten, etwa „Neu auslesen“, „Text neu erkennen“ und „Posteingang einreihen“.
 
-**Tastatur in „Prüfen“:** `Enter` übernehmen · `J`/`K` nächster/voriger · `R` verwerfen · `N` neu auslesen · `E` ins erste unsichere Feld · `X` markieren · `Z` letzte Übernahme rückgängig (bei gemeinsamer Übernahme alle) · `Esc` Feld verlassen · `?` Hilfe
+**Tastatur in „Prüfen“:** `Enter` übernehmen · `J`/`K` nächster/voriger · `R` verwerfen · `N` neu auslesen · `E` ins erste unsichere Feld · `X` markieren · `Z` letzte Übernahme rückgängig (bei gemeinsamer Übernahme alle) · `T` erkannten Text vergleichen · `Esc` Feld verlassen · `?` Hilfe
+
+### Text vom Bild (Vision-OCR)
+
+Ist der OCR-Text von Paperless schlecht (Zeichensalat, fast leer, Seite auf dem Kopf), schreibt ein Vision-Modell (`PILOT_VISION_MODEL`) die Seiten vor dem Auslesen vom Bild ab. Der neue Text landet im Vorschlag, nicht sofort in Paperless:
+
+- In *Prüfen* zeigt der Abschnitt „Text“ die Qualität vorher → nachher, die Herkunft und Warnungen (Zahlen, die im alten Text fehlen, falsche IBAN- oder Ausweis-Prüfziffern, ungültige Daten, deutlich kürzerer Text).
+- „Vergleichen“ (`T`) zeigt alt und neu nebeneinander: neue Wörter grün, weggefallene rot, verdächtige Zahlen gelb.
+- Das Kästchen „Erkannten Text übernehmen“ ist nur ohne Warnungen vorausgewählt. Mit Haken ersetzt die Übernahme den Inhalt in Paperless; der alte Text steht im Verlauf, „Rückgängig“ holt ihn zurück.
+- Die Sammel-Übernahme schreibt den Text nur bei Abschriften ohne Warnungen.
+- „Text neu erkennen“ (✨) gibt es in Prüfen, in der Markier-Leiste und im Verlauf, auch für Dokumente mit gutem Text.
 
 ### So läuft ein Dokument durch
 

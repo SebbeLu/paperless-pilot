@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { renderApp } from "@/test/render";
-import { change, lookups } from "@/test/review-fixtures";
+import { change, lookups, visionHost } from "@/test/review-fixtures";
 import { server } from "@/test/server";
 import { describeChange } from "./history-page";
 
@@ -76,6 +76,39 @@ describe("Verlauf", () => {
     expect(screen.getByText("Dokument 702: Paperless weg")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Dokument 702 markieren" })).toBeChecked();
     expect(screen.getByRole("link", { name: "Zu Prüfen →" })).toHaveAttribute("href", "/pruefen");
+  });
+
+  it("lässt den Text markierter Dokumente neu erkennen", async () => {
+    serve([[change(1), change(2, { document_id: 702 })]]);
+    const requested: number[][] = [];
+    server.use(
+      http.get("*/api/hosts", () => HttpResponse.json([visionHost])),
+      http.post("*/api/documents/transcribe", async ({ request }) => {
+        const { ids } = (await request.json()) as { ids: number[] };
+        requested.push(ids);
+        return HttpResponse.json({ enqueued: ids, failed: [] });
+      }),
+    );
+    renderApp("/verlauf");
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Alle markieren" }));
+    const button = screen.getByRole("button", { name: "2 Text neu erkennen" });
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+
+    expect(
+      await screen.findByText(/2 Dokumente werden mit Vorrang neu vom Bild abgeschrieben/),
+    ).toBeInTheDocument();
+    expect(requested).toEqual([[701, 702]]);
+  });
+
+  it("sperrt „Text neu erkennen“ ohne Vision-Rechner", async () => {
+    serve([[change(1)]]);
+    renderApp("/verlauf");
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Alle markieren" }));
+
+    expect(screen.getByRole("button", { name: "1 Text neu erkennen" })).toBeDisabled();
   });
 
   it("zeigt Änderungen mit Namen statt IDs", async () => {

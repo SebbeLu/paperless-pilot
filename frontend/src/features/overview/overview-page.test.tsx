@@ -172,4 +172,58 @@ describe("Übersicht", () => {
     await vi.waitFor(() => expect(calls).toBe(2));
     expect(screen.getByText(/aktualisiert sich automatisch/)).toBeInTheDocument();
   });
+
+  it("zeigt Dokumente mit schwachem Text und reiht sie zum Abschreiben ein", async () => {
+    const requested: number[][] = [];
+    server.use(
+      http.get("*/api/documents/weak-text", () =>
+        HttpResponse.json({
+          document_ids: [4, 9, 12],
+          threshold: 0.68,
+          vision_available: true,
+          checked_at: "2026-10-30T12:00:00Z",
+        }),
+      ),
+      http.post("*/api/documents/transcribe", async ({ request }) => {
+        const { ids } = (await request.json()) as { ids: number[] };
+        requested.push(ids);
+        return HttpResponse.json({ enqueued: ids, failed: [] });
+      }),
+    );
+    renderApp();
+
+    expect(
+      await screen.findByText("3 Dokumente haben schwachen OCR-Text (Qualität unter 0,68)."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Alle einreihen" }));
+
+    expect(await screen.findByText(/3 eingereiht/)).toBeInTheDocument();
+    expect(requested).toEqual([[4, 9, 12]]);
+  });
+
+  it("sagt, wenn kein Rechner Text vom Bild abschreiben kann", async () => {
+    server.use(
+      http.get("*/api/documents/weak-text", () =>
+        HttpResponse.json({
+          document_ids: [4],
+          threshold: 0.68,
+          vision_available: false,
+          checked_at: "2026-10-30T12:00:00Z",
+        }),
+      ),
+    );
+    renderApp();
+
+    expect(await screen.findByText(/1 Dokument hat schwachen OCR-Text/)).toBeInTheDocument();
+    expect(screen.getByText(/Kein Rechner mit Vision-Modell/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Alle einreihen" })).toBeDisabled();
+  });
+
+  it("meldet, wenn kein Dokument schwachen Text hat", async () => {
+    renderApp();
+
+    expect(
+      await screen.findByText("Kein Dokument mit schwachem OCR-Text ohne Abschrift."),
+    ).toBeInTheDocument();
+  });
 });

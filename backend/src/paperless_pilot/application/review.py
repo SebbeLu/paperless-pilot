@@ -9,6 +9,7 @@ from paperless_pilot.adapters.db.repositories import (
     JobRepository,
     SuggestionRepository,
     TaxonomyRepository,
+    TranscriptionRepository,
 )
 from paperless_pilot.application.events import EventBus
 from paperless_pilot.application.lessons import LessonService
@@ -38,6 +39,7 @@ class SuggestionDetail(BaseModel):
     live: MetadataValues  # aktueller Stand in Paperless
     original_file_name: str
     changed_since: list[str]  # Felder, die seit dem Auslesen in Paperless geändert wurden
+    live_content: str | None = None  # Text in Paperless – nur, wenn ein neuer vorgeschlagen ist
 
 
 class BulkFailure(BaseModel):
@@ -81,8 +83,11 @@ class ReviewService:
         lessons: LessonService,
         clock: Clock,
         events: EventBus,
+        *,
+        transcriptions: TranscriptionRepository | None = None,
     ) -> None:
         self._paperless = paperless
+        self._transcriptions = transcriptions
         self._suggestions = suggestions
         self._changes = changes
         self._jobs = jobs
@@ -105,6 +110,7 @@ class ReviewService:
             live=current_values(document, taxonomy),
             original_file_name=document.original_file_name,
             changed_since=_changed_since(suggestion, document, taxonomy),
+            live_content=document.content if suggestion.proposed.content is not None else None,
         )
 
     async def accept(
@@ -214,19 +220,22 @@ class ReviewService:
                 result.failed.append(BulkFailure(suggestion_id=suggestion_id, message=str(error)))
         return result
 
-    async def reextract(self, suggestion_id: int) -> Suggestion:
-        """Vorschlag verwerfen und das Dokument mit Vorrang neu auslesen."""
+    async def reextract(self, suggestion_id: int, kind: JobKind = JobKind.EXTRACT) -> Suggestion:
+        """Vorschlag verwerfen und das Dokument mit Vorrang neu auslesen.
+
+        Mit `JobKind.TRANSCRIBE` wird vorher der Text neu vom Bild abgeschrieben."""
         suggestion = await self._get_open(suggestion_id)
         taxonomy, _ = await self._taxonomy.get()
         await self._replace_status(
             suggestion.document_id, taxonomy, taxonomy.status.todo.paperless_id
         )
         superseded = await self._suggestions.set_status(
-            suggestion.id, SuggestionStatus.SUPERSEDED, self._clock.now(), note="neu auslesen"
+            suggestion.id,
+            SuggestionStatus.SUPERSEDED,
+            self._clock.now(),
+            note="Text neu erkennen" if kind == JobKind.TRANSCRIBE else "neu auslesen",
         )
-        await self._jobs.enqueue(
-            suggestion.document_id, JobKind.EXTRACT, self._clock.now(), priority=REEXTRACT_PRIORITY
-        )
+        await self._requeue(suggestion.document_id, kind)
         self._events.publish("suggestions", suggestion.document_id)
         self._events.publish("jobs", suggestion.document_id)
         return superseded
@@ -240,7 +249,9 @@ class ReviewService:
                 result.failed.append(BulkFailure(suggestion_id=suggestion_id, message=str(error)))
         return result
 
-    async def reextract_documents(self, document_ids: list[int]) -> ReextractDocumentsResult:
+    async def reextract_documents(
+        self, document_ids: list[int], kind: JobKind = JobKind.EXTRACT
+    ) -> ReextractDocumentsResult:
         """Dokumente mit Vorrang neu auslesen, auch bereits übernommene (etwa aus dem Verlauf)."""
         result = ReextractDocumentsResult(enqueued=[], failed=[])
         taxonomy, _ = await self._taxonomy.get()
@@ -248,17 +259,13 @@ class ReviewService:
         for document_id in dict.fromkeys(document_ids):
             try:
                 if suggestion := open_.get(document_id):
-                    await self.reextract(suggestion.id)  # offener Vorschlag wird dabei verworfen
+                    # offener Vorschlag wird dabei verworfen
+                    await self.reextract(suggestion.id, kind)
                 else:
                     await self._replace_status(
                         document_id, taxonomy, taxonomy.status.todo.paperless_id
                     )
-                    await self._jobs.enqueue(
-                        document_id,
-                        JobKind.EXTRACT,
-                        self._clock.now(),
-                        priority=REEXTRACT_PRIORITY,
-                    )
+                    await self._requeue(document_id, kind)
             except PilotError as error:
                 result.failed.append(DocumentFailure(document_id=document_id, message=str(error)))
                 continue
@@ -266,6 +273,12 @@ class ReviewService:
         if result.enqueued:
             self._events.publish("jobs")
         return result
+
+    async def _requeue(self, document_id: int, kind: JobKind) -> None:
+        if kind == JobKind.TRANSCRIBE and self._transcriptions is not None:
+            # Die alte Abschrift darf das Auslesen nicht mehr beeinflussen
+            await self._transcriptions.remove(document_id)
+        await self._jobs.enqueue(document_id, kind, self._clock.now(), priority=REEXTRACT_PRIORITY)
 
     async def _get(self, suggestion_id: int) -> Suggestion:
         suggestion = await self._suggestions.get(suggestion_id)

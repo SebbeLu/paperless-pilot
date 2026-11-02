@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { renderApp } from "@/test/render";
-import { detail, reviewHandlers, suggestion } from "@/test/review-fixtures";
+import { detail, NEW_TEXT, reviewHandlers, suggestion, transcribed } from "@/test/review-fixtures";
 import { healthyStatus, server, statusHandler } from "@/test/server";
 import { formatDate, nameOf } from "./review-form";
 
@@ -343,6 +343,114 @@ describe("Prüfen", () => {
     expect(await screen.findByDisplayValue("Bürostuhl 2")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Vorheriger Vorschlag" }));
     expect(await screen.findByDisplayValue("Bürostuhl 1")).toBeInTheDocument();
+  });
+});
+
+describe("Prüfen – erkannter Text", () => {
+  it("zeigt den neu erkannten Text und übernimmt ihn nur mit Haken", async () => {
+    const backend = setup([transcribed(1)]);
+
+    const apply = await screen.findByRole("checkbox", { name: /Erkannten Text übernehmen/ });
+    expect(apply).toBeChecked();
+    expect(screen.getByText("Qualität 0,41 → 0,93")).toBeInTheDocument();
+    expect(
+      screen.getByText(/2 Seiten · aufgerichtet: Seite 2 · gemma4:26b auf Mac · 14 s/),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Übernehmen/ }));
+
+    await waitFor(() => expect(backend.accepted).toHaveLength(1));
+    expect(backend.accepted[0]?.body.values.content).toBe(NEW_TEXT);
+  });
+
+  it("lässt den Haken bei Warnungen weg und schreibt dann keinen Text", async () => {
+    const backend = setup([
+      transcribed(1, [{ code: "iban", message: "IBAN-Prüfziffer falsch: DE00 1234" }]),
+    ]);
+
+    const apply = await screen.findByRole("checkbox", { name: /Erkannten Text übernehmen/ });
+    expect(apply).not.toBeChecked();
+    expect(screen.getByText("IBAN-Prüfziffer falsch: DE00 1234")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Übernehmen/ }));
+
+    await waitFor(() => expect(backend.accepted).toHaveLength(1));
+    expect(backend.accepted[0]?.body.values.content).toBeNull();
+  });
+
+  it("vergleicht alt und neu mit T und markiert verdächtige Zahlen", async () => {
+    setup([transcribed(1)]);
+    await screen.findByRole("checkbox", { name: /Erkannten Text übernehmen/ });
+
+    await userEvent.keyboard("t");
+
+    expect(await screen.findByText("Textvergleich")).toBeInTheDocument();
+    expect(screen.queryByTitle("Vorschau Dokument 701")).not.toBeInTheDocument();
+    const marks = document.querySelectorAll("mark");
+    const byKind = (kind: string) =>
+      [...marks].filter((m) => m.dataset.diff === kind).map((m) => m.textContent);
+    expect(byKind("removed")).toContain("Rechnunq");
+    expect(byKind("added")).toContain("Rechnung");
+    expect(byKind("warn")).toEqual(["999999"]);
+
+    await userEvent.keyboard("t");
+    expect(await screen.findByTitle("Vorschau Dokument 701")).toBeInTheDocument();
+  });
+
+  it("übernimmt Text mit Warnung nach Blick in den Vergleich", async () => {
+    const backend = setup([
+      transcribed(1, [
+        { code: "new_numbers", message: "Zahlen, die im bisherigen Text nicht vorkommen: 4711" },
+      ]),
+    ]);
+    await userEvent.click(await screen.findByRole("button", { name: /Vergleichen/ }));
+    const marks = [...document.querySelectorAll("mark[data-diff=warn]")].map((m) => m.textContent);
+    expect(marks).toContain("4711");
+    await userEvent.click(screen.getByRole("button", { name: "Vergleich schließen" }));
+    expect(await screen.findByTitle("Vorschau Dokument 701")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /Erkannten Text übernehmen/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Übernehmen/ }));
+
+    await waitFor(() => expect(backend.accepted).toHaveLength(1));
+    expect(backend.accepted[0]?.body.values.content).toBe(NEW_TEXT);
+  });
+
+  it("zeigt ohne erkannten Text keinen Abschnitt „Text“", async () => {
+    setup();
+    await screen.findByDisplayValue("Bürostuhl 1");
+
+    await userEvent.keyboard("t");
+
+    expect(screen.queryByText("Text neu erkannt")).not.toBeInTheDocument();
+    expect(screen.queryByText("Textvergleich")).not.toBeInTheDocument();
+  });
+
+  it("lässt den Text neu erkennen – einzeln und für markierte", async () => {
+    const backend = setup([suggestion(1), suggestion(2), suggestion(3)]);
+    await screen.findByDisplayValue("Bürostuhl 1");
+    const single = screen.getByRole("button", { name: "Text neu erkennen" });
+    await waitFor(() => expect(single).toBeEnabled());
+
+    await userEvent.click(single);
+    await waitFor(() => expect(backend.transcribed).toEqual([[701]]));
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Alle markieren" }));
+    await userEvent.click(screen.getByRole("button", { name: "2 Text neu erkennen" }));
+    await waitFor(() => expect(backend.transcribed).toEqual([[701], [702, 703]]));
+    expect(
+      await screen.findByText(/2 Dokumente werden mit Vorrang neu vom Bild abgeschrieben/),
+    ).toBeInTheDocument();
+  });
+
+  it("sagt bei der Sammel-Übernahme, wessen Text mitgeht", async () => {
+    setup([
+      transcribed(1),
+      transcribed(2, [{ code: "date", message: "Ungültiges Datum: 31.02.2024" }]),
+    ]);
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Alle markieren" }));
+
+    expect(
+      screen.getByText(/erkannter Text wird bei 1 von 2 mit übernommen \(nur ohne Warnungen\)/),
+    ).toBeInTheDocument();
   });
 });
 

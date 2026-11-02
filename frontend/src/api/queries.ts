@@ -115,6 +115,12 @@ export function useEnqueueInbox() {
   });
 }
 
+export function useReextractDocuments() {
+  return useSuggestionAction((ids: number[]) =>
+    unwrap(api.POST("/api/documents/reextract", { body: { ids } })),
+  );
+}
+
 export function useRetryJob() {
   const client = useQueryClient();
   return useMutation({

@@ -55,6 +55,16 @@ class ReextractManyResult(BaseModel):
     failed: list[BulkFailure]
 
 
+class DocumentFailure(BaseModel):
+    document_id: int
+    message: str
+
+
+class ReextractDocumentsResult(BaseModel):
+    enqueued: list[int]
+    failed: list[DocumentFailure]
+
+
 class ReviewService:
     def __init__(
         self,
@@ -196,6 +206,33 @@ class ReviewService:
                 result.reextracted.append(await self.reextract(suggestion_id))
             except PilotError as error:
                 result.failed.append(BulkFailure(suggestion_id=suggestion_id, message=str(error)))
+        return result
+
+    async def reextract_documents(self, document_ids: list[int]) -> ReextractDocumentsResult:
+        """Dokumente mit Vorrang neu auslesen, auch bereits übernommene (etwa aus dem Verlauf)."""
+        result = ReextractDocumentsResult(enqueued=[], failed=[])
+        taxonomy, _ = await self._taxonomy.get()
+        open_ = {s.document_id: s for s in await self._suggestions.list(SuggestionStatus.OPEN)}
+        for document_id in dict.fromkeys(document_ids):
+            try:
+                if suggestion := open_.get(document_id):
+                    await self.reextract(suggestion.id)  # offener Vorschlag wird dabei verworfen
+                else:
+                    await self._replace_status(
+                        document_id, taxonomy, taxonomy.status.todo.paperless_id
+                    )
+                    await self._jobs.enqueue(
+                        document_id,
+                        JobKind.EXTRACT,
+                        self._clock.now(),
+                        priority=REEXTRACT_PRIORITY,
+                    )
+            except PilotError as error:
+                result.failed.append(DocumentFailure(document_id=document_id, message=str(error)))
+                continue
+            result.enqueued.append(document_id)
+        if result.enqueued:
+            self._events.publish("jobs")
         return result
 
     async def _get(self, suggestion_id: int) -> Suggestion:

@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, FileText, Inbox, ListPlus, RefreshCw, Server } from "lucide-react";
+import { AlertTriangle, FileText, Inbox, RefreshCw, Server } from "lucide-react";
 import type { ReactNode } from "react";
 import type { HostStatus, PaperlessStatus, SystemStatus } from "@/api/client";
 import { useEnqueueInbox, useJobs, useRetryJob, useSystemStatus } from "@/api/queries";
+import { AiIcon } from "@/components/ai-icon";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Alert } from "@/components/ui/alert";
@@ -102,7 +103,7 @@ function WorkSection({ status }: { status: SystemStatus }) {
           Arbeitsstand
         </h2>
         <Button variant="primary" onClick={() => enqueue.mutate()} disabled={enqueue.isPending}>
-          <ListPlus className="size-4" aria-hidden="true" />
+          <AiIcon className="text-current dark:text-current" />
           Posteingang einreihen
         </Button>
       </div>

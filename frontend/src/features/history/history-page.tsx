@@ -1,7 +1,15 @@
+import { Link } from "@tanstack/react-router";
 import { ArrowRight, RotateCcw } from "lucide-react";
-import { useState } from "react";
-import { ApiError, type Change, type DocumentState, type Lookups } from "@/api/client";
-import { useChanges, useLookups, useRevertChange } from "@/api/queries";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ApiError,
+  type Change,
+  type DocumentFailure,
+  type DocumentState,
+  type Lookups,
+} from "@/api/client";
+import { useChanges, useLookups, useReextractDocuments, useRevertChange } from "@/api/queries";
+import { AiIcon } from "@/components/ai-icon";
 import { PageHeader } from "@/components/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +23,29 @@ export function HistoryPage() {
   const { data, error, isPending, fetchNextPage, hasNextPage, isFetchingNextPage } = useChanges();
   const lookups = useLookups();
   const changes = data?.pages.flat() ?? [];
+  // Markiert werden Dokumente – mehrere Einträge desselben Dokuments teilen sich das Kästchen
+  const [marked, setMarked] = useState<ReadonlySet<number>>(new Set());
+  const [result, setResult] = useState<{ enqueued: number; failed: DocumentFailure[] } | null>(
+    null,
+  );
+  const reextract = useReextractDocuments();
+  const documentIds = [...new Set(changes.map((c) => c.document_id))];
+  const toggle = useCallback((id: number) => {
+    setMarked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
+  const reextractMarked = () => {
+    if (!marked.size || reextract.isPending) return;
+    reextract.mutate([...marked], {
+      onSuccess: (r) => {
+        setResult({ enqueued: r.enqueued.length, failed: r.failed });
+        setMarked(new Set(r.failed.map((f) => f.document_id)));
+      },
+    });
+  };
 
   return (
     <>
@@ -22,6 +53,46 @@ export function HistoryPage() {
         title="Verlauf"
         description="Jede Änderung, die paperless-pilot in Paperless geschrieben hat."
       />
+      {result && result.enqueued > 0 && (
+        <Alert className="mb-4 flex-wrap justify-between">
+          <span>
+            {result.enqueued === 1 ? "1 Dokument wird" : `${result.enqueued} Dokumente werden`} mit
+            Vorrang neu ausgelesen. Die neuen Vorschläge erscheinen unter Prüfen.
+          </span>
+          <Link
+            to="/pruefen"
+            className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-100"
+          >
+            Zu Prüfen →
+          </Link>
+        </Alert>
+      )}
+      {result && result.failed.length > 0 && (
+        <Alert tone="warning" className="mb-4 flex-col">
+          <span>Nicht neu ausgelesen, bleibt markiert:</span>
+          <ul className="list-disc pl-5">
+            {result.failed.map((f) => (
+              <li key={f.document_id}>
+                Dokument {f.document_id}: {f.message}
+              </li>
+            ))}
+          </ul>
+        </Alert>
+      )}
+      {reextract.error && (
+        <Alert tone="danger" className="mb-4">
+          {reextract.error.message}
+        </Alert>
+      )}
+      {changes.length > 0 && (
+        <SelectionBar
+          total={documentIds.length}
+          marked={marked.size}
+          busy={reextract.isPending}
+          onMarkAll={(all) => setMarked(new Set(all ? documentIds : []))}
+          onReextract={reextractMarked}
+        />
+      )}
       {error && <Alert tone="danger">{error.message}</Alert>}
       {isPending && <p className="text-sm text-zinc-500">Lädt …</p>}
       {data && changes.length === 0 && (
@@ -32,7 +103,12 @@ export function HistoryPage() {
       <ol className="space-y-3">
         {changes.map((change) => (
           <li key={change.id}>
-            <ChangeCard change={change} lookups={lookups.data} />
+            <ChangeCard
+              change={change}
+              lookups={lookups.data}
+              marked={marked.has(change.document_id)}
+              onToggle={toggle}
+            />
           </li>
         ))}
       </ol>
@@ -47,7 +123,65 @@ export function HistoryPage() {
   );
 }
 
-function ChangeCard({ change, lookups }: { change: Change; lookups: Lookups | undefined }) {
+function SelectionBar({
+  total,
+  marked,
+  busy,
+  onMarkAll,
+  onReextract,
+}: {
+  total: number;
+  marked: number;
+  busy: boolean;
+  onMarkAll: (all: boolean) => void;
+  onReextract: () => void;
+}) {
+  const all = useRef<HTMLInputElement>(null);
+  const some = marked > 0 && marked < total;
+  useEffect(() => {
+    if (all.current) all.current.indeterminate = some;
+  }, [some]);
+  return (
+    <Card className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input
+          ref={all}
+          type="checkbox"
+          className="size-4 accent-brand-600"
+          checked={marked > 0 && marked === total}
+          onChange={(e) => onMarkAll(e.target.checked)}
+        />
+        Alle markieren
+      </label>
+      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+        {marked
+          ? `${marked === 1 ? "1 Dokument" : `${marked} Dokumente`} markiert`
+          : "Dokumente markieren, um sie noch einmal auslesen zu lassen"}
+      </span>
+      <Button
+        className="ml-auto"
+        onClick={onReextract}
+        disabled={busy || marked === 0}
+        title="KI-Funktion: Dokumente mit Vorrang noch einmal auslesen; neue Vorschläge kommen unter Prüfen"
+      >
+        <AiIcon />
+        {marked === 0 ? "Markierte neu auslesen" : `${marked} neu auslesen`}
+      </Button>
+    </Card>
+  );
+}
+
+function ChangeCard({
+  change,
+  lookups,
+  marked,
+  onToggle,
+}: {
+  change: Change;
+  lookups: Lookups | undefined;
+  marked: boolean;
+  onToggle: (documentId: number) => void;
+}) {
   const revert = useRevertChange();
   const [confirmForce, setConfirmForce] = useState(false);
   const conflict =
@@ -58,17 +192,26 @@ function ChangeCard({ change, lookups }: { change: Change; lookups: Lookups | un
   return (
     <Card className="p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-            <Badge tone={isApply ? "success" : "neutral"}>
-              {isApply ? "Übernommen" : "Rückgängig gemacht"}
-            </Badge>
-            <span className="truncate">{change.after.title}</span>
-          </p>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Dokument {change.document_id} · {dateTime.format(new Date(change.created_at))}
-            {change.reverted_by != null && " · später rückgängig gemacht"}
-          </p>
+        <div className="flex min-w-0 gap-3">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 shrink-0 accent-brand-600"
+            checked={marked}
+            onChange={() => onToggle(change.document_id)}
+            aria-label={`Dokument ${change.document_id} markieren`}
+          />
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+              <Badge tone={isApply ? "success" : "neutral"}>
+                {isApply ? "Übernommen" : "Rückgängig gemacht"}
+              </Badge>
+              <span className="truncate">{change.after.title}</span>
+            </p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Dokument {change.document_id} · {dateTime.format(new Date(change.created_at))}
+              {change.reverted_by != null && " · später rückgängig gemacht"}
+            </p>
+          </div>
         </div>
         {isApply && change.reverted_by == null && (
           <Button

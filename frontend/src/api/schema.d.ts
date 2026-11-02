@@ -459,6 +459,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/reextract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reextract
+         * @description Dokumente mit Vorrang neu auslesen – offene Vorschläge dazu werden verworfen.
+         */
+        post: operations["reextract_api_documents_reextract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{document_id}/{kind}": {
         parameters: {
             query?: never;
@@ -576,6 +596,18 @@ export interface components {
             allowed: boolean;
             /** Reason */
             reason: string;
+        };
+        /** DocumentFailure */
+        DocumentFailure: {
+            /** Document Id */
+            document_id: number;
+            /** Message */
+            message: string;
+        };
+        /** DocumentIdsRequest */
+        DocumentIdsRequest: {
+            /** Ids */
+            ids: number[];
         };
         /**
          * DocumentState
@@ -968,6 +1000,13 @@ export interface components {
              * @default 0
              */
             succeeded: number;
+        };
+        /** ReextractDocumentsResult */
+        ReextractDocumentsResult: {
+            /** Enqueued */
+            enqueued: number[];
+            /** Failed */
+            failed: components["schemas"]["DocumentFailure"][];
         };
         /** ReextractManyResult */
         ReextractManyResult: {
@@ -1856,6 +1895,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reextract_api_documents_reextract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentIdsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReextractDocumentsResult"];
+                };
             };
             /** @description Validation Error */
             422: {

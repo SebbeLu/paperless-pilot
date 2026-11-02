@@ -1,9 +1,25 @@
 from fastapi import APIRouter, Response
+from pydantic import BaseModel
 
 from paperless_pilot.api.deps import ContainerDep
+from paperless_pilot.application.review import ReextractDocumentsResult
 from paperless_pilot.domain.models import FileKind
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+class DocumentIdsRequest(BaseModel):
+    ids: list[int]
+
+
+@router.post("/reextract")
+async def reextract(
+    request: DocumentIdsRequest, container: ContainerDep
+) -> ReextractDocumentsResult:
+    """Dokumente mit Vorrang neu auslesen – offene Vorschläge dazu werden verworfen."""
+    result = await container.review.reextract_documents(request.ids)
+    container.scheduler.wake()
+    return result
 
 
 @router.get("/{document_id}/{kind}", response_class=Response)

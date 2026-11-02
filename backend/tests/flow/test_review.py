@@ -150,6 +150,24 @@ async def test_reextract_many_skips_decided_suggestions(p: Pipeline) -> None:
     assert (await p.jobs.stats()).queued == 1
 
 
+async def test_reextract_documents_from_history(p: Pipeline) -> None:
+    accepted = await suggest(p, 1)
+    await p.review.accept(accepted.id, accepted.proposed)
+    still_open = await suggest(p, 2)
+
+    result = await p.review.reextract_documents([1, 2, 1, 999])
+
+    assert result.enqueued == [1, 2]
+    assert [f.document_id for f in result.failed] == [999]
+    assert TODO in p.paperless.documents[1].tag_ids
+    assert DONE not in p.paperless.documents[1].tag_ids
+    superseded = await p.suggestions.get(still_open.id)
+    assert superseded is not None
+    assert superseded.status == SuggestionStatus.SUPERSEDED
+    jobs = [j for j in await p.jobs.list() if j.status == JobStatus.QUEUED]
+    assert sorted((j.document_id, j.priority) for j in jobs) == [(1, 10), (2, 10)]
+
+
 async def test_decided_or_unknown_suggestions_are_rejected(p: Pipeline) -> None:
     suggestion = await suggest(p)
     await p.review.reject(suggestion.id)

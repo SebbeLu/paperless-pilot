@@ -1,12 +1,12 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import {
+  Brush,
   Cpu,
   History,
   Inbox,
   LayoutDashboard,
   ListChecks,
   type LucideIcon,
-  Sparkles,
 } from "lucide-react";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 
@@ -23,7 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/aufraeumen",
     label: "Aufräumen",
-    icon: Sparkles,
+    icon: Brush, // Funkeln ist das Zeichen für KI-Funktionen
     hint: "Tags und Korrespondenten bereinigen",
   },
   { to: "/regeln", label: "Regeln", icon: ListChecks, hint: "Dokumenttypen, Felder und Titel" },

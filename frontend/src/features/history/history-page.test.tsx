@@ -37,6 +37,47 @@ function serve(pages: ReturnType<typeof change>[][], options: { conflict?: boole
 }
 
 describe("Verlauf", () => {
+  it("liest markierte Dokumente neu aus und meldet, was nicht ging", async () => {
+    serve([
+      [
+        change(3, { document_id: 703 }),
+        change(2, { document_id: 702 }),
+        change(1, { document_id: 701 }),
+        change(4, { document_id: 701, kind: "revert" }),
+      ],
+    ]);
+    const requested: number[][] = [];
+    server.use(
+      http.post("*/api/documents/reextract", async ({ request }) => {
+        const { ids } = (await request.json()) as { ids: number[] };
+        requested.push(ids);
+        return HttpResponse.json({
+          enqueued: ids.filter((id) => id !== 702),
+          failed: [{ document_id: 702, message: "Paperless weg" }],
+        });
+      }),
+    );
+    renderApp("/verlauf");
+
+    const button = await screen.findByRole("button", { name: "Markierte neu auslesen" });
+    expect(button).toBeDisabled();
+    expect(button.querySelector("[data-ai]")).not.toBeNull();
+    const [applied, reverted] = screen.getAllByRole("checkbox", { name: "Dokument 701 markieren" });
+    await userEvent.click(applied as HTMLElement);
+    expect(reverted).toBeChecked(); // beide Einträge gehören zu Dokument 701
+    expect(screen.getByText("1 Dokument markiert")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Alle markieren" }));
+    expect(screen.getByText("3 Dokumente markiert")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "3 neu auslesen" }));
+
+    expect(await screen.findByText(/2 Dokumente werden mit Vorrang neu/)).toBeInTheDocument();
+    expect(requested).toEqual([[703, 702, 701]]);
+    expect(screen.getByText("Dokument 702: Paperless weg")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Dokument 702 markieren" })).toBeChecked();
+    expect(screen.getByRole("link", { name: "Zu Prüfen →" })).toHaveAttribute("href", "/pruefen");
+  });
+
   it("zeigt Änderungen mit Namen statt IDs", async () => {
     serve([[change(1)]]);
     renderApp("/verlauf");

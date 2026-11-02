@@ -13,9 +13,11 @@ Bearbeitet Dokumente in [Paperless-ngx](https://docs.paperless-ngx.com/) automat
 |---|---|
 | **Übersicht** | Kennzahlen (Dokumente, Posteingang, zu prüfen, wartend, Fehler), „Posteingang einreihen“, Verbindungsstatus |
 | **Prüfen** | Liste mit unsicheren Vorschlägen zuerst, PDF-Vorschau, Formular mit bisherigem Wert, Vorschlag, Prüfergebnis und Belegzitat; „Neu auslesen“ verwirft einen Vorschlag und liest das Dokument mit Vorrang noch einmal aus; mehrere oder alle Vorschläge markieren und gemeinsam unverändert übernehmen (Konflikte bleiben offen) oder neu auslesen; Bedienung per Tastatur |
-| **Verlauf** | Jede Schreibaktion mit Vorher→Nachher und Rückgängig (mit Konfliktprüfung) |
+| **Verlauf** | Jede Schreibaktion mit Vorher→Nachher und Rückgängig (mit Konfliktprüfung); Dokumente markieren und mit Vorrang neu auslesen lassen, die neuen Vorschläge kommen unter Prüfen |
 | **Regeln** | Taxonomie: Dokumenttypen, Personen (mit Aliasen), Lebensbereiche, Status-Tags; Abgleich mit Paperless, Import/Export; gelernte Korrekturen ansehen und vergessen |
 | **Rechner & Modelle** | Status je Ollama-Rechner mit Begründung („Wartet: Rechner wird benutzt, Zeitfenster ab 20:00“), Pause, Zeitfenster, Leerlauf und Sperre über Home Assistant |
+
+Knöpfe mit dem Funkel-Symbol (✨) lassen das Sprachmodell arbeiten, etwa „Neu auslesen“ und „Posteingang einreihen“.
 
 **Tastatur in „Prüfen“:** `Enter` übernehmen · `J`/`K` nächster/voriger · `R` verwerfen · `N` neu auslesen · `E` ins erste unsichere Feld · `X` markieren · `Z` letzte Übernahme rückgängig (bei gemeinsamer Übernahme alle) · `Esc` Feld verlassen · `?` Hilfe
 

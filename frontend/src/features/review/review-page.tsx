@@ -1,12 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  Keyboard,
-  PartyPopper,
-  RotateCcw,
-} from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Keyboard, PartyPopper } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
@@ -28,6 +21,7 @@ import {
   useSystemStatus,
   useTaxonomy,
 } from "@/api/queries";
+import { AiIcon } from "@/components/ai-icon";
 import { PageHeader } from "@/components/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -290,9 +284,9 @@ function BulkBar({
         <Button
           onClick={onReextract}
           disabled={busy || marked.length === 0}
-          title="Vorschläge verwerfen und die Dokumente mit Vorrang noch einmal auslesen lassen"
+          title="KI-Funktion: Vorschläge verwerfen und die Dokumente mit Vorrang noch einmal auslesen lassen"
         >
-          <RotateCcw className="size-4" aria-hidden="true" />
+          <AiIcon />
           {marked.length === 0 ? "Markierte neu auslesen" : `${marked.length} neu auslesen`}
         </Button>
         <Button
@@ -513,7 +507,10 @@ function Review({
               <Button variant="primary" onClick={() => doAccept(true)}>
                 Trotzdem übernehmen
               </Button>
-              <Button onClick={() => reextract.mutate(suggestion.id)}>Neu auslesen</Button>
+              <Button onClick={() => reextract.mutate(suggestion.id)}>
+                <AiIcon />
+                Neu auslesen
+              </Button>
             </span>
           </Alert>
         )}
@@ -538,9 +535,9 @@ function Review({
             size="md"
             onClick={() => reextract.mutate(suggestion.id)}
             disabled={busy}
-            title="Vorschlag verwerfen und das Dokument mit Vorrang noch einmal auslesen lassen"
+            title="KI-Funktion: Vorschlag verwerfen und das Dokument mit Vorrang noch einmal auslesen lassen"
           >
-            <RotateCcw className="size-4" aria-hidden="true" />
+            <AiIcon />
             Neu auslesen <kbd className="ml-1 text-xs opacity-70">N</kbd>
           </Button>
         </div>

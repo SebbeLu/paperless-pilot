@@ -938,6 +938,48 @@
         }
       }
     },
+    "/api/documents/reextract": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Reextract",
+        "description": "Dokumente mit Vorrang neu auslesen – offene Vorschläge dazu werden verworfen.",
+        "operationId": "reextract_api_documents_reextract_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentIdsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReextractDocumentsResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/{kind}": {
       "get": {
         "tags": [
@@ -1187,6 +1229,40 @@
           "reason"
         ],
         "title": "Decision"
+      },
+      "DocumentFailure": {
+        "properties": {
+          "document_id": {
+            "type": "integer",
+            "title": "Document Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "message"
+        ],
+        "title": "DocumentFailure"
+      },
+      "DocumentIdsRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "DocumentIdsRequest"
       },
       "DocumentState": {
         "properties": {
@@ -2168,6 +2244,30 @@
         },
         "type": "object",
         "title": "QueueStats"
+      },
+      "ReextractDocumentsResult": {
+        "properties": {
+          "enqueued": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Enqueued"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentFailure"
+            },
+            "type": "array",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enqueued",
+          "failed"
+        ],
+        "title": "ReextractDocumentsResult"
       },
       "ReextractManyResult": {
         "properties": {

@@ -1,6 +1,6 @@
 # Phase 2 – Vision-OCR: Plan
 
-Stand: 2026-11-02 · Status: Schritte 2.1 bis 2.5 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
+Stand: 2026-11-02 · Status: Schritte 2.1 bis 2.6 umgesetzt · Grundlage: [konzept.md](konzept.md), Abschnitt 6, Schritt 2
 
 ## 1. Ziel
 
@@ -253,3 +253,9 @@ Alle zehn sind deutlich besser lesbar. Im Schnitt dauert das 10–20 s je Seite;
 - **Rechner & Modelle:** Angabe „Vision (Text vom Bild)“ je Rechner, mit `ollama pull`-Hinweis, wenn das Vision-Modell fehlt.
 - **Abweichung vom Plan:** `GET /api/documents/<id>/quality` gibt es nicht. Die Qualität steht am Vorschlag, und die Übersicht braucht nur die Liste.
 
+### Schritt 2.6 – Demo-Daten und Ende-zu-Ende-Test (2026-11-02)
+
+- **Zwei Demo-Scans mit schlechtem OCR-Text:** eine Kfz-Rechnung (Qualität 0,15 → 0,90, keine Warnung) und ein Kontoauszug (0,59 → 0,87, Warnung zu drei Zahlen, die der alte Text nicht hat). Die Demo-PDFs zeigen den sauberen Seitentext; in „Paperless“ steht der verstümmelte.
+- **Demo-Renderer statt Bild:** `DemoPageRenderer` gibt den Text der PDF-Seite weiter, der Demo-Rechner gibt ihn als Abschrift zurück. Damit läuft der echte Ablauf (Bewertung, Abschreiben, Prüfregeln, Auslesen) ohne Vision-Modell.
+- **Korrektur:** Das Stadtwerke-Dokument lag mit 0,665 knapp unter der Schwelle und wurde deshalb abgeschrieben, mit einem Platzhaltertext als Ergebnis. Es hat jetzt einen Satz mehr (0,89).
+- **Playwright:** Ein neuer Test öffnet den Kontoauszug (Warnung, kein Haken, Zahl „640,00“ im Vergleich gelb) und übernimmt die Kfz-Rechnung mit Text; geprüft wird der geschriebene Inhalt im Verlauf.

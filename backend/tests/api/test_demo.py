@@ -3,7 +3,13 @@ from pathlib import Path
 import httpx
 from asgi_lifespan import LifespanManager
 
-from paperless_pilot.adapters.demo import DemoLlmHost, DemoPaperless, _answer, text_pdf
+from paperless_pilot.adapters.demo import (
+    DemoLlmHost,
+    DemoPageRenderer,
+    DemoPaperless,
+    _answer,
+    text_pdf,
+)
 from paperless_pilot.api.app import create_app
 from paperless_pilot.config import Settings
 from paperless_pilot.domain.models import FileKind
@@ -20,7 +26,7 @@ async def test_demo_mode_runs_end_to_end(tmp_path: Path) -> None:
         async with httpx.AsyncClient(transport=transport, base_url="http://demo") as client:
             status = (await client.get("/api/system/status")).json()
             assert status["paperless"]["version"] == "Demo"
-            assert status["queue"]["queued"] == 6
+            assert status["queue"]["queued"] == 8
 
             assert await container.scheduler.run_once("Demo-Rechner")
             [suggestion] = (await client.get("/api/suggestions")).json()
@@ -34,6 +40,10 @@ async def test_demo_mode_runs_end_to_end(tmp_path: Path) -> None:
             assert change.status_code == 200
             preview = await client.get(f"/api/documents/{suggestion['document_id']}/preview")
             assert preview.content.startswith(b"%PDF-1.4")
+
+            weak = (await client.get("/api/documents/weak-text")).json()
+            assert weak["document_ids"] == [7, 8]
+            assert weak["vision_available"]
 
     # Neustart: Taxonomie bleibt, wird nicht doppelt angelegt
     app = create_app(settings)
@@ -68,10 +78,23 @@ def test_demo_answer_respects_allowed_values() -> None:
 async def test_demo_paperless_and_host_basics() -> None:
     paperless = DemoPaperless()
     host = DemoLlmHost(delay_seconds=0)
-    assert (await paperless.server_info()).documents_inbox == 6
+    assert (await paperless.server_info()).documents_inbox == 8
     assert (await host.probe()).models[0].name == "demo-modell"
     thumb = await paperless.get_file(1, FileKind.THUMB)
     assert thumb.media_type == "image/svg+xml"
     assert len([d async for d in paperless.iter_documents(with_all_tags=[999])]) == 0
     assert (await paperless.create_correspondent("X")).name == "X"
     assert b"(a\\(b\\)) '" in text_pdf("a(b)")
+
+
+async def test_demo_host_transcribes_the_page_text() -> None:
+    paperless = DemoPaperless()
+    host = DemoLlmHost(delay_seconds=0)
+    scan = await paperless.get_file(7, FileKind.ORIGINAL)
+
+    [page] = await DemoPageRenderer().render(scan, 8)
+    text = await host.generate_text(model="m", prompt="p", images=[page.png], max_tokens=10)
+
+    assert text.startswith("Muster Versicherung AG")
+    assert "Kfz-Haftpflicht" not in (await paperless.get_document(7)).content
+    assert await host.generate_text(model="m", prompt="p", max_tokens=10) == ""

@@ -12,6 +12,7 @@ htmlcov/
 # Node
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 frontend/coverage/
 
 # Lokale Konfiguration und Geheimnisse

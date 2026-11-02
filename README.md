@@ -58,6 +58,8 @@ docker run --rm -p 8080:8080 -e PILOT_DEMO=true ghcr.io/sebbelu/paperless-pilot:
 
 Danach `http://localhost:8080` öffnen.
 
+Zwei der Demo-Dokumente sind Scans mit unbrauchbarem OCR-Text. Der Demo-Rechner schreibt sie „vom Bild“ ab, sodass sich Abschnitt „Text“ und Textvergleich (`T`) in Prüfen ansehen lassen: die Kfz-Rechnung ohne Warnung, der Kontoauszug mit gelb markierten Zahlen.
+
 ## Betrieb auf Unraid
 
 Die CI baut bei jedem Push auf `main` das Image `ghcr.io/sebbelu/paperless-pilot:latest` (amd64 und arm64). Für Unraid liegt eine Vorlage in [unraid/paperless-pilot.xml](unraid/paperless-pilot.xml). Im Unraid-Terminal laden:

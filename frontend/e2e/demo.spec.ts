@@ -60,3 +60,28 @@ test("Rechner-Seite pausiert und setzt fort", async ({ page }) => {
   await page.getByRole("button", { name: "Fortsetzen" }).click();
   await expect(page.getByRole("button", { name: "Pausieren" })).toBeVisible();
 });
+
+test("Text vom Bild: abschreiben, vergleichen, mit übernehmen", async ({ page }) => {
+  await page.goto("/pruefen");
+  const list = page.getByRole("navigation", { name: "Offene Vorschläge" });
+  const applyText = page.getByRole("checkbox", { name: /Erkannten Text übernehmen/ });
+
+  // Kontoauszug: Zahlen fehlen im alten Text – Warnung, Haken nicht gesetzt, Zahlen gelb
+  await list.getByRole("button", { name: /Kontoauszug Nr\. 10/ }).click({ timeout: 60_000 });
+  await expect(page.getByRole("heading", { name: "Text neu erkannt" })).toBeVisible();
+  await expect(page.getByText(/Zahlen, die im bisherigen Text nicht vorkommen/)).toBeVisible();
+  await expect(applyText).not.toBeChecked();
+  await page.locator("body").press("t");
+  await expect(page.getByText("Vom Bild abgeschrieben")).toBeVisible();
+  await expect(page.locator('mark[data-diff="warn"]', { hasText: "640,00" })).toBeVisible();
+  await page.getByRole("button", { name: "Vergleich schließen" }).click();
+
+  // Kfz-Rechnung: ohne Warnung ist der Haken gesetzt, der Text geht mit nach Paperless
+  await list.getByRole("button", { name: /Beitragsrechnung Kfz-Haftpflicht 2027/ }).click();
+  await expect(applyText).toBeChecked();
+  await page.getByRole("button", { name: /^Übernehmen/ }).click();
+  await expect(page.getByText("„Beitragsrechnung Kfz-Haftpflicht 2027“ übernommen.")).toBeVisible();
+
+  const changes = await (await page.request.get("/api/changes?document_id=7")).json();
+  expect(changes[0].after.content).toContain("Jahresbeitrag: 312,40 EUR");
+});

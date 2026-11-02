@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime
 from importlib import resources
 from typing import TYPE_CHECKING, Any
 
+import pypdfium2 as pdfium
 from pydantic import BaseModel
 
 from paperless_pilot.domain.errors import NotFoundError
@@ -29,6 +30,7 @@ from paperless_pilot.domain.models import (
     Tag,
 )
 from paperless_pilot.domain.taxonomy import Taxonomy
+from paperless_pilot.domain.transcription import RenderedPage
 
 if TYPE_CHECKING:
     from paperless_pilot.api.container import Adapters, Container
@@ -58,7 +60,8 @@ _DOCUMENTS: list[tuple[str, str]] = [
     (
         "Scan 2026-09-01.pdf",
         "Stadtwerke Musterstadt\nFamilie Beispiel\nAbschlagsrechnung Strom\n"
-        "Musterstadt, 01.09.2026\nMonatlicher Abschlag: 85,00 EUR",
+        "Musterstadt, 01.09.2026\nMonatlicher Abschlag: 85,00 EUR\n"
+        "Der Abschlag wird wie bisher von Ihrem Konto abgebucht.",
     ),
     (
         "Brief.pdf",
@@ -70,6 +73,30 @@ _DOCUMENTS: list[tuple[str, str]] = [
         "Scan 2026-08-20.pdf",
         "Baumarkt Nord GmbH & Co. KG\nKassenbon\nVerkaufsdatum: 20.08.2026\n"
         "Schrauben, Dübel 12,40 EUR\nSumme 12,40 EUR",
+    ),
+]
+
+# Scans, deren OCR-Text unbrauchbar ist: (Dateiname, Text in Paperless, Text auf der Seite).
+# Die Demo-PDFs zeigen den Seitentext, und der Demo-Rechner „schreibt“ ihn vom Bild ab.
+_WEAK_SCANS: list[tuple[str, str, str]] = [
+    (
+        "Scan 2026-10-16 08.03.11.pdf",
+        '‚ _‚„ ﬁfa Muﬅer Verﬁ ‚ ’ ~ .\n" ;l/ (( ‚ "" |\nB«iträg sr ech nu_g Kfz—Hafipﬂ\n'
+        "~ — ‚ ‚ _ i l ' !\n|| ; ‚ ~~ .. ‚",
+        "Muster Versicherung AG · Postfach 10 20 30 · 12345 Musterstadt\nHerrn Kim Beispiel\n"
+        "Beitragsrechnung Kfz-Haftpflicht 2027\nMusterstadt, den 15.10.2026\n"
+        "Versicherungsschein KH-552018\nJahresbeitrag: 312,40 EUR, fällig am 01.01.2027\n"
+        "Bitte überweisen Sie den Betrag bis zur Fälligkeit.",
+    ),
+    (
+        "Scan 2026-10-31 17.40.02.pdf",
+        "Bank Musterstadt eG\nK ontoausz ug Nr. 10 / 2026 ‚‚ _\nIBAN DE89 3704 0044 0532 0130 00\n"
+        "15.10. Gutschr ift ~ 1.284,50\n‚ _ ‚„ ﬁ ; l | — ~ ..\n20.10. Lastschr. 312,40 ‚‚\n"
+        "|| ; ‚ ~~ ‚ ﬁ — ‚‚ _ ;",
+        "Bank Musterstadt eG\nKontoauszug Nr. 10 / 2026\nIBAN DE89 3704 0044 0532 0130 00\n"
+        "15.10. Gutschrift Gehalt 1.284,50 EUR\n"
+        "20.10. Lastschrift Muster Versicherung AG 312,40 EUR\n"
+        "27.10. Dauerauftrag Miete 640,00 EUR\nNeuer Kontostand: 2.931,77 EUR",
     ),
 ]
 
@@ -116,8 +143,12 @@ class DemoPaperless:
                 original_file_name=name,
                 modified=now,
             )
-            for i, (name, content) in enumerate(_DOCUMENTS, start=1)
+            for i, (name, content) in enumerate(
+                [*_DOCUMENTS, *((name, ocr) for name, ocr, _ in _WEAK_SCANS)], start=1
+            )
         }
+        first_scan = len(_DOCUMENTS) + 1
+        self.pages = {i: page for i, (_, _, page) in enumerate(_WEAK_SCANS, start=first_scan)}
         self._next_id = 1000
         self._modified = now
 
@@ -185,7 +216,20 @@ class DemoPaperless:
         document = await self.get_document(document_id)
         if kind == FileKind.THUMB:
             return DocumentFile(content=_THUMB_SVG, media_type="image/svg+xml")
-        return DocumentFile(content=text_pdf(document.content), media_type="application/pdf")
+        page = self.pages.get(document_id, document.content)
+        return DocumentFile(content=text_pdf(page), media_type="application/pdf")
+
+
+class DemoPageRenderer:
+    """Statt eines Bildes den Text der Demo-PDF-Seiten – der Demo-Rechner kann ja nicht sehen."""
+
+    async def render(self, file: DocumentFile, max_pages: int) -> list[RenderedPage]:
+        pdf = pdfium.PdfDocument(file.content)
+        try:
+            texts = [page.get_textpage().get_text_range() for page in pdf][:max_pages]
+        finally:
+            pdf.close()
+        return [RenderedPage(png=text.replace("\r\n", "\n").encode()) for text in texts]
 
 
 class DemoLlmHost:
@@ -213,7 +257,7 @@ class DemoLlmHost:
         stop: Callable[[str], bool] | None = None,
     ) -> str:
         await asyncio.sleep(self._delay)
-        return "Demo-Abschrift: Dieser Text wurde vom Bild abgeschrieben."
+        return images[0].decode() if images else ""
 
     async def generate_structured[T: BaseModel](
         self,
@@ -319,7 +363,7 @@ _THUMB_SVG = (
 async def demo_adapters(_settings: "Settings") -> AsyncIterator["Adapters"]:
     from paperless_pilot.api.container import Adapters  # noqa: PLC0415 - vermeidet Zyklus
 
-    yield Adapters(paperless=DemoPaperless(), hosts=[DemoLlmHost()])
+    yield Adapters(paperless=DemoPaperless(), hosts=[DemoLlmHost()], pages=DemoPageRenderer())
 
 
 async def seed_demo(container: "Container") -> None:

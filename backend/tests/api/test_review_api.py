@@ -86,6 +86,16 @@ async def test_reextract(ready: Api) -> None:
     assert (await ready.container.jobs.stats()).queued == 1
 
 
+async def test_reextract_many(ready: Api) -> None:
+    [item] = (await ready.client.get("/api/suggestions")).json()
+
+    response = await ready.client.post("/api/suggestions/reextract", json={"ids": [item["id"]]})
+
+    assert [s["status"] for s in response.json()["reextracted"]] == ["superseded"]
+    assert response.json()["failed"] == []
+    assert (await ready.container.jobs.stats()).queued == 1
+
+
 async def test_unknown_suggestion_is_404(api: Api) -> None:
     assert (await api.client.get("/api/suggestions/42")).status_code == 404
 

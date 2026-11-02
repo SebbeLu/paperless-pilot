@@ -179,6 +179,12 @@ export function useAcceptSuggestions() {
   );
 }
 
+export function useReextractSuggestions() {
+  return useSuggestionAction((ids: number[]) =>
+    unwrap(api.POST("/api/suggestions/reextract", { body: { ids } })),
+  );
+}
+
 export function useRejectSuggestion() {
   return useSuggestionAction((id: number) =>
     unwrap(

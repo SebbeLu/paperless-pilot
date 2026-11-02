@@ -40,14 +40,19 @@ class SuggestionDetail(BaseModel):
     changed_since: list[str]  # Felder, die seit dem Auslesen in Paperless geändert wurden
 
 
-class AcceptFailure(BaseModel):
+class BulkFailure(BaseModel):
     suggestion_id: int
     message: str
 
 
 class AcceptManyResult(BaseModel):
     accepted: list[Change]
-    failed: list[AcceptFailure]  # bleiben offen, etwa weil in Paperless inzwischen geändert
+    failed: list[BulkFailure]  # bleiben offen, etwa weil in Paperless inzwischen geändert
+
+
+class ReextractManyResult(BaseModel):
+    reextracted: list[Suggestion]
+    failed: list[BulkFailure]
 
 
 class ReviewService:
@@ -153,7 +158,7 @@ class ReviewService:
                 suggestion = await self._get_open(suggestion_id)
                 result.accepted.append(await self.accept(suggestion.id, suggestion.proposed))
             except PilotError as error:
-                result.failed.append(AcceptFailure(suggestion_id=suggestion_id, message=str(error)))
+                result.failed.append(BulkFailure(suggestion_id=suggestion_id, message=str(error)))
         return result
 
     async def reject(self, suggestion_id: int, reason: str | None = None) -> Suggestion:
@@ -183,6 +188,15 @@ class ReviewService:
         self._events.publish("suggestions", suggestion.document_id)
         self._events.publish("jobs", suggestion.document_id)
         return superseded
+
+    async def reextract_many(self, suggestion_ids: list[int]) -> ReextractManyResult:
+        result = ReextractManyResult(reextracted=[], failed=[])
+        for suggestion_id in dict.fromkeys(suggestion_ids):
+            try:
+                result.reextracted.append(await self.reextract(suggestion_id))
+            except PilotError as error:
+                result.failed.append(BulkFailure(suggestion_id=suggestion_id, message=str(error)))
+        return result
 
     async def _get(self, suggestion_id: int) -> Suggestion:
         suggestion = await self._suggestions.get(suggestion_id)

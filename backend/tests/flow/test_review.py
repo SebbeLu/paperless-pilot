@@ -137,6 +137,19 @@ async def test_reextract_requeues_with_priority(p: Pipeline) -> None:
     assert job.priority == 10
 
 
+async def test_reextract_many_skips_decided_suggestions(p: Pipeline) -> None:
+    first = await suggest(p, 1)
+    decided = await suggest(p, 2)
+    await p.review.reject(decided.id)
+
+    result = await p.review.reextract_many([first.id, decided.id, first.id])
+
+    assert [s.id for s in result.reextracted] == [first.id]
+    assert [f.suggestion_id for f in result.failed] == [decided.id]
+    assert "bereits entschieden" in result.failed[0].message
+    assert (await p.jobs.stats()).queued == 1
+
+
 async def test_decided_or_unknown_suggestions_are_rejected(p: Pipeline) -> None:
     suggestion = await suggest(p)
     await p.review.reject(suggestion.id)

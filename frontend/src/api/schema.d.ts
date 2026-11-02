@@ -339,6 +339,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/suggestions/reextract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reextract Many
+         * @description Markierte Vorschläge verwerfen und die Dokumente mit Vorrang neu auslesen.
+         */
+        post: operations["reextract_many_api_suggestions_reextract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/suggestions/{suggestion_id}/reextract": {
         parameters: {
             query?: never;
@@ -483,24 +503,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AcceptFailure */
-        AcceptFailure: {
-            /** Suggestion Id */
-            suggestion_id: number;
-            /** Message */
-            message: string;
-        };
-        /** AcceptManyRequest */
-        AcceptManyRequest: {
-            /** Ids */
-            ids: number[];
-        };
         /** AcceptManyResult */
         AcceptManyResult: {
             /** Accepted */
             accepted: components["schemas"]["Change"][];
             /** Failed */
-            failed: components["schemas"]["AcceptFailure"][];
+            failed: components["schemas"]["BulkFailure"][];
         };
         /** AcceptRequest */
         AcceptRequest: {
@@ -516,6 +524,13 @@ export interface components {
          * @enum {string}
          */
         Actor: "user" | "automatic";
+        /** BulkFailure */
+        BulkFailure: {
+            /** Suggestion Id */
+            suggestion_id: number;
+            /** Message */
+            message: string;
+        };
         /** Change */
         Change: {
             /** Document Id */
@@ -842,6 +857,11 @@ export interface components {
             /** Tags */
             tags: components["schemas"]["Option"][];
         };
+        /** ManyRequest */
+        ManyRequest: {
+            /** Ids */
+            ids: number[];
+        };
         /**
          * MetadataValues
          * @description Die Felder, die paperless-pilot setzt – aktuell oder vorgeschlagen.
@@ -948,6 +968,13 @@ export interface components {
              * @default 0
              */
             succeeded: number;
+        };
+        /** ReextractManyResult */
+        ReextractManyResult: {
+            /** Reextracted */
+            reextracted: components["schemas"]["Suggestion"][];
+            /** Failed */
+            failed: components["schemas"]["BulkFailure"][];
         };
         /** RejectRequest */
         RejectRequest: {
@@ -1566,7 +1593,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AcceptManyRequest"];
+                "application/json": components["schemas"]["ManyRequest"];
             };
         };
         responses: {
@@ -1647,6 +1674,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Suggestion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reextract_many_api_suggestions_reextract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReextractManyResult"];
                 };
             };
             /** @description Validation Error */

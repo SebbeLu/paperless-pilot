@@ -521,7 +521,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AcceptManyRequest"
+                "$ref": "#/components/schemas/ManyRequest"
               }
             }
           },
@@ -639,6 +639,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Suggestion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suggestions/reextract": {
+      "post": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Reextract Many",
+        "description": "Markierte Vorschläge verwerfen und die Dokumente mit Vorrang neu auslesen.",
+        "operationId": "reextract_many_api_suggestions_reextract_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReextractManyResult"
                 }
               }
             }
@@ -958,40 +1000,6 @@
   },
   "components": {
     "schemas": {
-      "AcceptFailure": {
-        "properties": {
-          "suggestion_id": {
-            "type": "integer",
-            "title": "Suggestion Id"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          }
-        },
-        "type": "object",
-        "required": [
-          "suggestion_id",
-          "message"
-        ],
-        "title": "AcceptFailure"
-      },
-      "AcceptManyRequest": {
-        "properties": {
-          "ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ids"
-        ],
-        "title": "AcceptManyRequest"
-      },
       "AcceptManyResult": {
         "properties": {
           "accepted": {
@@ -1003,7 +1011,7 @@
           },
           "failed": {
             "items": {
-              "$ref": "#/components/schemas/AcceptFailure"
+              "$ref": "#/components/schemas/BulkFailure"
             },
             "type": "array",
             "title": "Failed"
@@ -1040,6 +1048,24 @@
           "automatic"
         ],
         "title": "Actor"
+      },
+      "BulkFailure": {
+        "properties": {
+          "suggestion_id": {
+            "type": "integer",
+            "title": "Suggestion Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suggestion_id",
+          "message"
+        ],
+        "title": "BulkFailure"
       },
       "Change": {
         "properties": {
@@ -1817,6 +1843,22 @@
         "title": "Lookups",
         "description": "Auswahllisten für die Oberfläche."
       },
+      "ManyRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "ManyRequest"
+      },
       "MetadataValues": {
         "properties": {
           "title": {
@@ -2126,6 +2168,30 @@
         },
         "type": "object",
         "title": "QueueStats"
+      },
+      "ReextractManyResult": {
+        "properties": {
+          "reextracted": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": "array",
+            "title": "Reextracted"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/BulkFailure"
+            },
+            "type": "array",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reextracted",
+          "failed"
+        ],
+        "title": "ReextractManyResult"
       },
       "RejectRequest": {
         "properties": {

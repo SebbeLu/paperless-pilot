@@ -2,7 +2,11 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from paperless_pilot.api.deps import ContainerDep
-from paperless_pilot.application.review import AcceptManyResult, SuggestionDetail
+from paperless_pilot.application.review import (
+    AcceptManyResult,
+    ReextractManyResult,
+    SuggestionDetail,
+)
 from paperless_pilot.domain.changes import Change
 from paperless_pilot.domain.suggestions import MetadataValues, Suggestion, SuggestionStatus
 
@@ -14,7 +18,7 @@ class AcceptRequest(BaseModel):
     force: bool = False
 
 
-class AcceptManyRequest(BaseModel):
+class ManyRequest(BaseModel):
     ids: list[int]
 
 
@@ -39,7 +43,7 @@ async def get_suggestion(suggestion_id: int, container: ContainerDep) -> Suggest
 
 
 @router.post("/accept")
-async def accept_many(request: AcceptManyRequest, container: ContainerDep) -> AcceptManyResult:
+async def accept_many(request: ManyRequest, container: ContainerDep) -> AcceptManyResult:
     """Markierte Vorschläge unverändert übernehmen – ohne „Trotzdem“ bei Konflikten."""
     return await container.review.accept_many(request.ids)
 
@@ -53,6 +57,14 @@ async def accept(suggestion_id: int, request: AcceptRequest, container: Containe
 @router.post("/{suggestion_id}/reject")
 async def reject(suggestion_id: int, request: RejectRequest, container: ContainerDep) -> Suggestion:
     return await container.review.reject(suggestion_id, request.reason)
+
+
+@router.post("/reextract")
+async def reextract_many(request: ManyRequest, container: ContainerDep) -> ReextractManyResult:
+    """Markierte Vorschläge verwerfen und die Dokumente mit Vorrang neu auslesen."""
+    result = await container.review.reextract_many(request.ids)
+    container.scheduler.wake()
+    return result
 
 
 @router.post("/{suggestion_id}/reextract")

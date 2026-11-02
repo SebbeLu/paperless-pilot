@@ -242,8 +242,25 @@ describe("Prüfen", () => {
     expect(
       await screen.findByText("Seit dem Auslesen in Paperless geändert: Absender."),
     ).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Neu auslesen" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Neu auslesen/ }));
     await waitFor(() => expect(backend.reextracted).toEqual([1]));
+  });
+
+  it("liest mit N oder markierte gemeinsam neu aus", async () => {
+    const backend = setup([suggestion(1), suggestion(2), suggestion(3)], { failIds: [3] });
+    await screen.findByDisplayValue("Bürostuhl 1");
+
+    await userEvent.keyboard("n");
+    await waitFor(() => expect(backend.reextracted).toEqual([1]));
+    await screen.findByDisplayValue("Bürostuhl 2");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Alle markieren" }));
+    await userEvent.click(screen.getByRole("button", { name: /2 neu auslesen/ }));
+
+    expect(await screen.findByText(/1 Dokument wird mit Vorrang neu/)).toBeInTheDocument();
+    expect(backend.reextractedMany).toEqual([[2, 3]]);
+    expect(screen.getByText(/1 Vorschlag nicht neu ausgelesen/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "„Bürostuhl 3“ markieren" })).toBeChecked();
   });
 
   it("wählt per Liste und zeigt Fehler verständlich", async () => {

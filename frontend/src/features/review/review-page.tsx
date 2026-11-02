@@ -9,8 +9,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  type AcceptManyResult,
   ApiError,
+  type BulkFailure,
   type Change,
   type MetadataValues,
   type Suggestion,
@@ -20,6 +20,7 @@ import {
   useAcceptSuggestions,
   useLookups,
   useReextractSuggestion,
+  useReextractSuggestions,
   useRejectSuggestion,
   useRevertChange,
   useSuggestion,
@@ -40,10 +41,17 @@ export function ReviewPage() {
   const [showHelp, setShowHelp] = useState(false);
   // Letzte Übernahme – bei der Sammel-Übernahme mehrere, „Rückgängig“ nimmt alle zurück
   const [lastChanges, setLastChanges] = useState<Change[]>([]);
-  const [failed, setFailed] = useState<AcceptManyResult["failed"]>([]);
+  // Ergebnis der letzten Sammel-Aktion: was nicht ging, und wie viele neu ausgelesen werden
+  const [failed, setFailed] = useState<{ verb: string; items: BulkFailure[] }>({
+    verb: "",
+    items: [],
+  });
+  const [requeued, setRequeued] = useState(0);
   const [marked, setMarked] = useState<ReadonlySet<number>>(new Set());
   const revert = useRevertChange();
   const acceptMany = useAcceptSuggestions();
+  const reextractMany = useReextractSuggestions();
+  const bulkBusy = acceptMany.isPending || reextractMany.isPending;
   const undo = useCallback(async () => {
     if (!lastChanges.length || revert.isPending) return;
     for (const [n, change] of lastChanges.entries()) {
@@ -68,15 +76,31 @@ export function ReviewPage() {
       return next;
     });
   }, []);
+  const afterBulk = (verb: string, items: BulkFailure[]) => {
+    setFailed({ verb, items });
+    setMarked(new Set(items.map((f) => f.suggestion_id)));
+  };
+  const reextractMarked = () => {
+    if (!markedItems.length || bulkBusy) return;
+    reextractMany.mutate(
+      markedItems.map((s) => s.id),
+      {
+        onSuccess: (result) => {
+          setRequeued(result.reextracted.length);
+          afterBulk("neu ausgelesen", result.failed);
+        },
+      },
+    );
+  };
   const acceptMarked = () => {
-    if (!markedItems.length || acceptMany.isPending) return;
+    if (!markedItems.length || bulkBusy) return;
     acceptMany.mutate(
       markedItems.map((s) => s.id),
       {
         onSuccess: (result) => {
           setLastChanges(result.accepted);
-          setFailed(result.failed);
-          setMarked(new Set(result.failed.map((f) => f.suggestion_id)));
+          setRequeued(0);
+          afterBulk("übernommen", result.failed);
         },
       },
     );
@@ -142,14 +166,20 @@ export function ReviewPage() {
           {revert.error.message}
         </Alert>
       )}
-      {failed.length > 0 && (
+      {requeued > 0 && (
+        <Alert className="mb-4">
+          {requeued === 1 ? "1 Dokument wird" : `${requeued} Dokumente werden`} mit Vorrang neu
+          ausgelesen. Die neuen Vorschläge erscheinen hier, sobald ein Rechner sie bearbeitet hat.
+        </Alert>
+      )}
+      {failed.items.length > 0 && (
         <Alert tone="warning" className="mb-4 flex-col">
           <span>
-            {failed.length === 1 ? "1 Vorschlag" : `${failed.length} Vorschläge`} nicht übernommen,
-            sie bleiben markiert:
+            {failed.items.length === 1 ? "1 Vorschlag" : `${failed.items.length} Vorschläge`} nicht{" "}
+            {failed.verb}, sie bleiben markiert:
           </span>
           <ul className="list-disc pl-5">
-            {failed.map((f) => (
+            {failed.items.map((f) => (
               <li key={f.suggestion_id}>
                 {titleOf(list.find((s) => s.id === f.suggestion_id)) ??
                   `Vorschlag ${f.suggestion_id}`}
@@ -159,10 +189,13 @@ export function ReviewPage() {
           </ul>
         </Alert>
       )}
-      {acceptMany.error && (
-        <Alert tone="danger" className="mb-4">
-          {acceptMany.error.message}
-        </Alert>
+      {[acceptMany.error, reextractMany.error].map(
+        (err) =>
+          err && (
+            <Alert key={err.message} tone="danger" className="mb-4">
+              {err.message}
+            </Alert>
+          ),
       )}
       {error && <Alert tone="danger">{error.message}</Alert>}
       {isPending && <p className="text-sm text-zinc-500">Lädt …</p>}
@@ -171,9 +204,10 @@ export function ReviewPage() {
         <BulkBar
           items={list}
           marked={markedItems}
-          busy={acceptMany.isPending}
+          busy={bulkBusy}
           onMarkAll={(all) => setMarked(new Set(all ? list.map((s) => s.id) : []))}
           onAccept={acceptMarked}
+          onReextract={reextractMarked}
         />
       )}
       {current && (
@@ -197,7 +231,8 @@ export function ReviewPage() {
             onToggleMark={() => toggle(current.id)}
             onAccepted={(change) => {
               setLastChanges([change]);
-              setFailed([]);
+              setFailed({ verb: "", items: [] });
+              setRequeued(0);
             }}
             onUndo={() => void undo()}
           />
@@ -219,12 +254,14 @@ function BulkBar({
   busy,
   onMarkAll,
   onAccept,
+  onReextract,
 }: {
   items: Suggestion[];
   marked: Suggestion[];
   busy: boolean;
   onMarkAll: (all: boolean) => void;
   onAccept: () => void;
+  onReextract: () => void;
 }) {
   const all = useRef<HTMLInputElement>(null);
   const some = marked.length > 0 && marked.length < items.length;
@@ -246,23 +283,31 @@ function BulkBar({
       </label>
       <span className="text-sm text-zinc-500 dark:text-zinc-400">
         {marked.length
-          ? `${marked.length} markiert${withWarnings ? `, davon ${withWarnings} mit Hinweisen` : ""} · werden unverändert übernommen`
+          ? `${marked.length} markiert${withWarnings ? `, davon ${withWarnings} mit Hinweisen` : ""}`
           : "Markieren mit X oder dem Kästchen in der Liste"}
       </span>
-      <Button
-        variant="primary"
-        className="ml-auto"
-        onClick={onAccept}
-        disabled={busy || marked.length === 0}
-      >
-        {busy
-          ? "Übernimmt …"
-          : marked.length === 0
+      <span className="ml-auto flex flex-wrap gap-2">
+        <Button
+          onClick={onReextract}
+          disabled={busy || marked.length === 0}
+          title="Vorschläge verwerfen und die Dokumente mit Vorrang noch einmal auslesen lassen"
+        >
+          <RotateCcw className="size-4" aria-hidden="true" />
+          {marked.length === 0 ? "Markierte neu auslesen" : `${marked.length} neu auslesen`}
+        </Button>
+        <Button
+          variant="primary"
+          onClick={onAccept}
+          disabled={busy || marked.length === 0}
+          title="Markierte Vorschläge unverändert nach Paperless schreiben"
+        >
+          {marked.length === 0
             ? "Markierte übernehmen"
             : marked.length === 1
               ? "1 markierten übernehmen"
               : `${marked.length} markierte übernehmen`}
-      </Button>
+        </Button>
+      </span>
     </Card>
   );
 }
@@ -396,6 +441,7 @@ function Review({
     onHelp: onToggleHelp,
     onUndo,
     onMark: onToggleMark,
+    onReextract: () => !busy && reextract.mutate(suggestion.id),
   });
 
   const changedSince = detail.data?.changed_since ?? [];
@@ -492,9 +538,10 @@ function Review({
             size="md"
             onClick={() => reextract.mutate(suggestion.id)}
             disabled={busy}
-            aria-label="Neu auslesen"
+            title="Vorschlag verwerfen und das Dokument mit Vorrang noch einmal auslesen lassen"
           >
             <RotateCcw className="size-4" aria-hidden="true" />
+            Neu auslesen <kbd className="ml-1 text-xs opacity-70">N</kbd>
           </Button>
         </div>
       </form>
@@ -511,10 +558,11 @@ type KeyHandlers = {
   onHelp: () => void;
   onUndo: () => void;
   onMark: () => void;
+  onReextract: () => void;
 };
 
 /** J/K blättern, Enter übernimmt, R verwirft, E springt ins erste unsichere Feld, Z rückgängig,
- * X markiert. */
+ * N liest neu aus, X markiert. */
 export function useReviewKeys(handlers: KeyHandlers) {
   const ref = useRef(handlers);
   ref.current = handlers;
@@ -537,6 +585,7 @@ export function useReviewKeys(handlers: KeyHandlers) {
           e: ref.current.onEdit,
           z: ref.current.onUndo,
           x: ref.current.onMark,
+          n: ref.current.onReextract,
           "?": ref.current.onHelp,
           Enter: ref.current.onAccept,
         } as Record<string, (() => void) | undefined>
@@ -556,6 +605,7 @@ function KeyboardHelp() {
     ["Enter", "Übernehmen (auch im Formular)"],
     ["J / K", "Nächster / vorheriger Vorschlag"],
     ["R", "Verwerfen"],
+    ["N", "Neu auslesen lassen"],
     ["E", "Ins erste unsichere Feld springen"],
     ["X", "Markieren für die Sammel-Übernahme"],
     ["Z", "Letzte Übernahme rückgängig"],

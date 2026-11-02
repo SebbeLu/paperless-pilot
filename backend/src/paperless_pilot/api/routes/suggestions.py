@@ -5,6 +5,7 @@ from paperless_pilot.api.deps import ContainerDep
 from paperless_pilot.application.review import (
     AcceptManyResult,
     ReextractManyResult,
+    RejectManyResult,
     SuggestionDetail,
 )
 from paperless_pilot.domain.changes import Change
@@ -52,6 +53,12 @@ async def accept_many(request: ManyRequest, container: ContainerDep) -> AcceptMa
 async def accept(suggestion_id: int, request: AcceptRequest, container: ContainerDep) -> Change:
     """Übernehmen – mit den Werten aus der Oberfläche (Vorschlag oder korrigiert)."""
     return await container.review.accept(suggestion_id, request.values, force=request.force)
+
+
+@router.post("/reject")
+async def reject_many(request: ManyRequest, container: ContainerDep) -> RejectManyResult:
+    """Markierte Vorschläge verwerfen."""
+    return await container.review.reject_many(request.ids)
 
 
 @router.post("/{suggestion_id}/reject")

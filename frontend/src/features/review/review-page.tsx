@@ -15,6 +15,7 @@ import {
   useReextractSuggestion,
   useReextractSuggestions,
   useRejectSuggestion,
+  useRejectSuggestions,
   useRevertChange,
   useSuggestion,
   useSuggestions,
@@ -41,11 +42,13 @@ export function ReviewPage() {
     items: [],
   });
   const [requeued, setRequeued] = useState(0);
+  const [rejected, setRejected] = useState(0);
   const [marked, setMarked] = useState<ReadonlySet<number>>(new Set());
   const revert = useRevertChange();
   const acceptMany = useAcceptSuggestions();
   const reextractMany = useReextractSuggestions();
-  const bulkBusy = acceptMany.isPending || reextractMany.isPending;
+  const rejectMany = useRejectSuggestions();
+  const bulkBusy = acceptMany.isPending || reextractMany.isPending || rejectMany.isPending;
   const undo = useCallback(async () => {
     if (!lastChanges.length || revert.isPending) return;
     for (const [n, change] of lastChanges.entries()) {
@@ -74,6 +77,20 @@ export function ReviewPage() {
     setFailed({ verb, items });
     setMarked(new Set(items.map((f) => f.suggestion_id)));
   };
+  const rejectMarked = () => {
+    if (!markedItems.length || bulkBusy) return;
+    rejectMany.mutate(
+      markedItems.map((s) => s.id),
+      {
+        onSuccess: (result) => {
+          setLastChanges([]);
+          setRequeued(0);
+          setRejected(result.rejected.length);
+          afterBulk("verworfen", result.failed);
+        },
+      },
+    );
+  };
   const reextractMarked = () => {
     if (!markedItems.length || bulkBusy) return;
     reextractMany.mutate(
@@ -81,6 +98,7 @@ export function ReviewPage() {
       {
         onSuccess: (result) => {
           setRequeued(result.reextracted.length);
+          setRejected(0);
           afterBulk("neu ausgelesen", result.failed);
         },
       },
@@ -94,6 +112,7 @@ export function ReviewPage() {
         onSuccess: (result) => {
           setLastChanges(result.accepted);
           setRequeued(0);
+          setRejected(0);
           afterBulk("übernommen", result.failed);
         },
       },
@@ -166,6 +185,12 @@ export function ReviewPage() {
           ausgelesen. Die neuen Vorschläge erscheinen hier, sobald ein Rechner sie bearbeitet hat.
         </Alert>
       )}
+      {rejected > 0 && (
+        <Alert className="mb-4">
+          {rejected === 1 ? "1 Vorschlag" : `${rejected} Vorschläge`} verworfen. In Paperless
+          bleiben die Dokumente unverändert, nur der Status „prüfen“ ist entfernt.
+        </Alert>
+      )}
       {failed.items.length > 0 && (
         <Alert tone="warning" className="mb-4 flex-col">
           <span>
@@ -183,7 +208,7 @@ export function ReviewPage() {
           </ul>
         </Alert>
       )}
-      {[acceptMany.error, reextractMany.error].map(
+      {[acceptMany.error, reextractMany.error, rejectMany.error].map(
         (err) =>
           err && (
             <Alert key={err.message} tone="danger" className="mb-4">
@@ -202,6 +227,7 @@ export function ReviewPage() {
           onMarkAll={(all) => setMarked(new Set(all ? list.map((s) => s.id) : []))}
           onAccept={acceptMarked}
           onReextract={reextractMarked}
+          onReject={rejectMarked}
         />
       )}
       {current && (
@@ -227,6 +253,7 @@ export function ReviewPage() {
               setLastChanges([change]);
               setFailed({ verb: "", items: [] });
               setRequeued(0);
+              setRejected(0);
             }}
             onUndo={() => void undo()}
           />
@@ -249,6 +276,7 @@ function BulkBar({
   onMarkAll,
   onAccept,
   onReextract,
+  onReject,
 }: {
   items: Suggestion[];
   marked: Suggestion[];
@@ -256,8 +284,15 @@ function BulkBar({
   onMarkAll: (all: boolean) => void;
   onAccept: () => void;
   onReextract: () => void;
+  onReject: () => void;
 }) {
   const all = useRef<HTMLInputElement>(null);
+  // Verwerfen lässt sich nicht rückgängig machen – daher erst nachfragen
+  const [confirming, setConfirming] = useState(false);
+  const count = marked.length;
+  useEffect(() => {
+    if (count === 0) setConfirming(false);
+  }, [count]);
   const some = marked.length > 0 && marked.length < items.length;
   useEffect(() => {
     if (all.current) all.current.indeterminate = some;
@@ -281,6 +316,31 @@ function BulkBar({
           : "Markieren mit X oder dem Kästchen in der Liste"}
       </span>
       <span className="ml-auto flex flex-wrap gap-2">
+        {confirming ? (
+          <>
+            <Button onClick={() => setConfirming(false)}>Abbrechen</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setConfirming(false);
+                onReject();
+              }}
+              disabled={busy}
+            >
+              {count === 1
+                ? "1 Vorschlag wirklich verwerfen"
+                : `${count} Vorschläge wirklich verwerfen`}
+            </Button>
+          </>
+        ) : (
+          <Button
+            onClick={() => setConfirming(true)}
+            disabled={busy || count === 0}
+            title="Markierte Vorschläge verwerfen; in Paperless wird nur der Status „prüfen“ entfernt"
+          >
+            {count === 0 ? "Markierte verwerfen" : `${count} verwerfen`}
+          </Button>
+        )}
         <Button
           onClick={onReextract}
           disabled={busy || marked.length === 0}

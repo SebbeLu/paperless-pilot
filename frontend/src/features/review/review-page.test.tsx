@@ -263,6 +263,26 @@ describe("Prüfen", () => {
     expect(screen.getByRole("checkbox", { name: "„Bürostuhl 3“ markieren" })).toBeChecked();
   });
 
+  it("verwirft markierte gemeinsam nach Rückfrage", async () => {
+    const backend = setup([suggestion(1), suggestion(2), suggestion(3)], { failIds: [3] });
+    await screen.findByDisplayValue("Bürostuhl 1");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "„Bürostuhl 2“ markieren" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "„Bürostuhl 3“ markieren" }));
+    await userEvent.click(screen.getByRole("button", { name: "2 verwerfen" }));
+    await userEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(backend.rejectedMany).toEqual([]);
+
+    await userEvent.click(screen.getByRole("button", { name: "2 verwerfen" }));
+    await userEvent.click(screen.getByRole("button", { name: "2 Vorschläge wirklich verwerfen" }));
+
+    expect(await screen.findByText(/1 Vorschlag verworfen/)).toBeInTheDocument();
+    expect(backend.rejectedMany).toEqual([[2, 3]]);
+    expect(screen.getByText(/1 Vorschlag nicht verworfen/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "„Bürostuhl 3“ markieren" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "1 verwerfen" })).toBeEnabled();
+  });
+
   it("wählt per Liste und zeigt Fehler verständlich", async () => {
     setup();
     server.use(

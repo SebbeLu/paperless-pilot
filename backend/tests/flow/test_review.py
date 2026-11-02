@@ -125,6 +125,20 @@ async def test_reject_removes_review_tag(p: Pipeline) -> None:
     assert INBOX in p.paperless.documents[1].tag_ids
 
 
+async def test_reject_many_reports_decided_and_unknown(p: Pipeline) -> None:
+    first = await suggest(p, 1)
+    second = await suggest(p, 2)
+    await p.review.accept(second.id, second.proposed)
+
+    result = await p.review.reject_many([first.id, second.id, 999, first.id])
+
+    assert [s.id for s in result.rejected] == [first.id]
+    assert [f.suggestion_id for f in result.failed] == [second.id, 999]
+    assert "bereits entschieden" in result.failed[0].message
+    assert REVIEW not in p.paperless.documents[1].tag_ids
+    assert DONE in p.paperless.documents[2].tag_ids
+
+
 async def test_reextract_requeues_with_priority(p: Pipeline) -> None:
     suggestion = await suggest(p)
 

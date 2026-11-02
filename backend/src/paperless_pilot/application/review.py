@@ -50,6 +50,11 @@ class AcceptManyResult(BaseModel):
     failed: list[BulkFailure]  # bleiben offen, etwa weil in Paperless inzwischen geändert
 
 
+class RejectManyResult(BaseModel):
+    rejected: list[Suggestion]
+    failed: list[BulkFailure]
+
+
 class ReextractManyResult(BaseModel):
     reextracted: list[Suggestion]
     failed: list[BulkFailure]
@@ -181,6 +186,15 @@ class ReviewService:
         )
         self._events.publish("suggestions", suggestion.document_id)
         return rejected
+
+    async def reject_many(self, suggestion_ids: list[int]) -> RejectManyResult:
+        result = RejectManyResult(rejected=[], failed=[])
+        for suggestion_id in dict.fromkeys(suggestion_ids):
+            try:
+                result.rejected.append(await self.reject(suggestion_id))
+            except PilotError as error:
+                result.failed.append(BulkFailure(suggestion_id=suggestion_id, message=str(error)))
+        return result
 
     async def reextract(self, suggestion_id: int) -> Suggestion:
         """Vorschlag verwerfen und das Dokument mit Vorrang neu auslesen."""

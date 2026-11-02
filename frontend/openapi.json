@@ -604,6 +604,48 @@
         }
       }
     },
+    "/api/suggestions/reject": {
+      "post": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Reject Many",
+        "description": "Markierte Vorschläge verwerfen.",
+        "operationId": "reject_many_api_suggestions_reject_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectManyResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/suggestions/{suggestion_id}/reject": {
       "post": {
         "tags": [
@@ -2292,6 +2334,30 @@
           "failed"
         ],
         "title": "ReextractManyResult"
+      },
+      "RejectManyResult": {
+        "properties": {
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": "array",
+            "title": "Rejected"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/BulkFailure"
+            },
+            "type": "array",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rejected",
+          "failed"
+        ],
+        "title": "RejectManyResult"
       },
       "RejectRequest": {
         "properties": {

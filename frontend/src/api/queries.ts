@@ -191,6 +191,12 @@ export function useReextractSuggestions() {
   );
 }
 
+export function useRejectSuggestions() {
+  return useSuggestionAction((ids: number[]) =>
+    unwrap(api.POST("/api/suggestions/reject", { body: { ids } })),
+  );
+}
+
 export function useRejectSuggestion() {
   return useSuggestionAction((id: number) =>
     unwrap(

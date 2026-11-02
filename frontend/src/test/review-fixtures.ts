@@ -108,6 +108,7 @@ export type ReviewBackend = {
   accepted: { id: number; body: { values: MetadataValues; force: boolean } }[];
   acceptedMany: number[][];
   rejected: number[];
+  rejectedMany: number[][];
   reextracted: number[];
   reextractedMany: number[][];
   reverted: number[];
@@ -153,6 +154,7 @@ export function reviewHandlers(
     accepted: [],
     acceptedMany: [],
     rejected: [],
+    rejectedMany: [],
     reextracted: [],
     reextractedMany: [],
     reverted: [],
@@ -201,6 +203,18 @@ export function reviewHandlers(
       return HttpResponse.json(
         change(100 + Number(params.id), { suggestion_id: Number(params.id) }),
       );
+    }),
+    http.post("*/api/suggestions/reject", async ({ request }) => {
+      const { ids } = (await request.json()) as { ids: number[] };
+      backend.rejectedMany.push(ids);
+      const fail = new Set(options.failIds ?? []);
+      for (const id of ids) if (!fail.has(id)) remove(id);
+      return HttpResponse.json({
+        rejected: initial.filter((s) => ids.includes(s.id) && !fail.has(s.id)),
+        failed: ids
+          .filter((id) => fail.has(id))
+          .map((id) => ({ suggestion_id: id, message: "bereits entschieden" })),
+      });
     }),
     http.post("*/api/suggestions/:id/reject", ({ params }) => {
       backend.rejected.push(Number(params.id));
